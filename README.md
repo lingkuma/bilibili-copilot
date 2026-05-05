@@ -1,5 +1,9 @@
 # bilibili-copilot
 
+<p align="center">
+  <img src="public/icons/icon128.png" alt="bilibili-copilot icon" width="128" height="128">
+</p>
+
 bilibili AI 视频总结助手，一个面向 Bilibili 视频页的浏览器扩展。它会读取当前视频字幕，并调用兼容 OpenAI Chat Completions 接口的模型生成结构化 Markdown 总结。
 
 ## 核心功能
