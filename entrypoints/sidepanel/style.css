@@ -1,0 +1,176 @@
+html,
+body,
+#app {
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #faf9f5;
+  color: #141413;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e6dfd8;
+  background: #faf9f5;
+}
+
+.eyebrow,
+.label,
+.meta {
+  margin: 0;
+  color: #6c6a64;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+h1,
+h2 {
+  margin: 0;
+  color: #141413;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 18px;
+}
+
+h2 {
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.video-block,
+.empty,
+.summary,
+.notice,
+.error,
+.subtitle-status {
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #f5f0e8;
+}
+
+.video-block,
+.empty,
+.summary {
+  padding: 14px;
+}
+
+.subtitle-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+}
+
+.subtitle-status strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+}
+
+.subtitle-status span {
+  color: #6c6a64;
+  font-size: 12px;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+select {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #faf9f5;
+  color: #141413;
+  padding: 0 10px;
+}
+
+button {
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.primary {
+  width: 100%;
+  margin-top: 10px;
+  background: #cc785c;
+  color: #ffffff;
+}
+
+.secondary,
+.icon-button {
+  border-color: #e6dfd8;
+  background: #faf9f5;
+  color: #141413;
+  padding: 0 12px;
+}
+
+.notice,
+.error {
+  margin-top: 12px;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.error {
+  border-color: #c64545;
+  color: #8f2323;
+  background: #fff4f2;
+}
+
+.summary {
+  margin-top: 14px;
+}
+
+.summary div {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  color: #252523;
+  font-size: 13px;
+  line-height: 1.65;
+}
