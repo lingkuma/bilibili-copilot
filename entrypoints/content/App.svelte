@@ -223,6 +223,94 @@
       behavior: 'smooth',
     })
   }
+
+  const captureVideoFrame = async (seconds: number) => {
+    const player = document.querySelector('video') as HTMLVideoElement | null
+    if (!player) {
+      throw new Error('没有找到当前页面的视频播放器。')
+    }
+
+    if (!player.videoWidth || !player.videoHeight) {
+      throw new Error('播放器画面尚未加载完成。')
+    }
+
+    const originalTime = player.currentTime
+    const wasPaused = player.paused
+
+    try {
+      if (!wasPaused) {
+        player.pause()
+      }
+
+      await seekTo(player, seconds)
+
+      const canvas = document.createElement('canvas')
+      canvas.width = player.videoWidth
+      canvas.height = player.videoHeight
+      const context = canvas.getContext('2d')
+      if (!context) {
+        throw new Error('当前浏览器无法创建截图画布。')
+      }
+
+      context.drawImage(player, 0, 0, canvas.width, canvas.height)
+
+      try {
+        return canvas.toDataURL('image/jpeg', 0.86)
+      } catch {
+        throw new Error('当前视频源不允许截图。')
+      }
+    } finally {
+      await seekTo(player, originalTime).catch(() => {
+        player.currentTime = originalTime
+      })
+      if (!wasPaused) {
+        void player.play().catch(() => undefined)
+      }
+    }
+  }
+
+  const seekTo = async (player: HTMLVideoElement, seconds: number) => {
+    const duration = Number.isFinite(player.duration) ? player.duration : seconds
+    const target = Math.max(0, Math.min(seconds, duration))
+
+    if (Math.abs(player.currentTime - target) < 0.15 && player.readyState >= 2) {
+      return
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        cleanup()
+        reject(new Error('视频定位超时。'))
+      }, 8000)
+
+      const cleanup = () => {
+        window.clearTimeout(timeout)
+        player.removeEventListener('seeked', handleSeeked)
+        player.removeEventListener('error', handleError)
+      }
+
+      const handleSeeked = () => {
+        cleanup()
+        resolve()
+      }
+
+      const handleError = () => {
+        cleanup()
+        reject(new Error('视频定位失败。'))
+      }
+
+      player.addEventListener('seeked', handleSeeked, { once: true })
+      player.addEventListener('error', handleError, { once: true })
+
+      try {
+        player.currentTime = target
+      } catch (seekError) {
+        cleanup()
+        reject(seekError)
+      }
+    })
+  }
+
   const persistSettings = async () => {
     saving = true
     saved = false
@@ -353,7 +441,7 @@
         {#if summary}
           <article class="summary">
             <p class="label">AI 输出</p>
-            <MarkdownView markdown={summary} onSeek={seekVideo} />
+            <MarkdownView markdown={summary} onSeek={seekVideo} onCaptureFrame={captureVideoFrame} />
           </article>
         {:else if loading}
           <article class="summary pending">

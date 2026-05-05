@@ -21,6 +21,11 @@ export type MarkdownBlock =
     parts: InlinePart[]
   }
   | {
+    type: 'image'
+    label: string
+    seconds: number
+  }
+  | {
     type: 'paragraph'
     parts: InlinePart[]
   }
@@ -30,6 +35,7 @@ export type MarkdownBlock =
   }
 
 const tokenPattern = /(\[(\d{1,2}:\d{2}(?::\d{2})?)(?:\s*-\s*(\d{1,2}:\d{2}(?::\d{2})?))?\]|\*\*([^*]+)\*\*)/g
+const imagePattern = /^\[<image>@(\d{1,2}:\d{2}(?::\d{2})?)\]$/i
 
 export const parseConstrainedMarkdown = (markdown: string): MarkdownBlock[] => {
   const lines = markdown.replace(/\r\n?/g, '\n').split('\n')
@@ -41,6 +47,25 @@ export const parseConstrainedMarkdown = (markdown: string): MarkdownBlock[] => {
     const trimmed = line.trim()
 
     if (!trimmed) {
+      index++
+      continue
+    }
+
+    const imageMatch = imagePattern.exec(trimmed)
+    if (imageMatch?.[1]) {
+      const seconds = parseTimestamp(imageMatch[1])
+      if (seconds !== null) {
+        blocks.push({
+          type: 'image',
+          label: imageMatch[1],
+          seconds,
+        })
+      } else {
+        blocks.push({
+          type: 'paragraph',
+          parts: parseInlineParts(trimmed),
+        })
+      }
       index++
       continue
     }
@@ -75,6 +100,7 @@ export const parseConstrainedMarkdown = (markdown: string): MarkdownBlock[] => {
       && (lines[index] ?? '').trim()
       && !/^(#{1,3})\s+/.test((lines[index] ?? '').trim())
       && !/^\s*[-*]\s+/.test(lines[index] ?? '')
+      && !imagePattern.test((lines[index] ?? '').trim())
     ) {
       paragraphLines.push((lines[index] ?? '').trim())
       index++

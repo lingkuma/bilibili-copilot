@@ -329,6 +329,53 @@ button:disabled {
   background: #dfeaff;
 }
 
+.frame-block {
+  margin: 10px 0 0;
+  overflow: hidden;
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #faf9f5;
+}
+
+.frame-block figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #ebe6df;
+}
+
+.frame-block figcaption span {
+  color: #6c6a64;
+  font-size: 12px;
+}
+
+.frame-action {
+  height: 28px;
+  border-color: #e6dfd8;
+  background: #ffffff;
+  color: #141413;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.frame-block img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  background: #181715;
+}
+
+.frame-error {
+  margin: 0;
+  padding: 10px;
+  color: #8f2323;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 520px) {
   .launcher,
   .window {
