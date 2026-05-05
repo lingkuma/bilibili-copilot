@@ -53,6 +53,13 @@ export interface CopilotSettings {
   includeTimestamps: boolean
   autoSummaryEnabled: boolean
   autoCaptureAiImages: boolean
+  cloudinaryCloudName: string
+  cloudinaryApiKey: string
+  cloudinaryApiSecret: string
+  telegraphAccessToken: string
+  telegraphShortName: string
+  telegraphAuthorName: string
+  telegraphAuthorUrl: string
 }
 
 export interface PromptTemplate {

@@ -1,4 +1,5 @@
-import type { DetectedVideo } from './types'
+import type { ShareImageSnapshot } from './share/telegraph'
+import type { DetectedVideo, ResolvedVideo } from './types'
 
 export type RuntimeMessage =
   | {
@@ -29,6 +30,12 @@ export type RuntimeMessage =
   }
   | {
     type: 'GET_SUBTITLE_CURRENT_VIDEO'
+  }
+  | {
+    type: 'SHARE_SUMMARY_TO_TELEGRAPH'
+    video: ResolvedVideo
+    summary: string
+    images: ShareImageSnapshot
   }
 
 export interface RuntimeResponse<T = unknown> {

@@ -230,6 +230,18 @@ button:disabled {
   width: 100%;
 }
 
+.share-link {
+  color: #2463c9;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.share-link:hover {
+  text-decoration: underline;
+}
+
 .secondary,
 .ghost {
   border-color: #e6dfd8;

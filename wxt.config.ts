@@ -11,6 +11,8 @@ export default defineConfig({
       'https://api.bilibili.com/*',
       'https://*.hdslb.com/*',
       'https://api.openai.com/*',
+      'https://api.telegra.ph/*',
+      'https://api.cloudinary.com/*',
     ],
     action: {
       default_title: 'Bilibili Copilot',

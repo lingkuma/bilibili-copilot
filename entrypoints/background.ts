@@ -4,7 +4,8 @@ import { summarizeSubtitle, summarizeSubtitleStream } from '../src/lib/ai/summar
 import { getSubtitleForAI } from '../src/lib/bilibili/subtitle'
 import { extractBvidFromUrl, extractPageFromUrl, resolveVideo } from '../src/lib/bilibili/video'
 import { fail, ok, type RuntimeMessage, type StreamPortEvent, type StreamPortRequest } from '../src/lib/messages'
-import { isAIConfigured, loadSettings } from '../src/lib/settings/storage'
+import { buildTelegraphContent, collectShareImageEntries } from '../src/lib/share/telegraph'
+import { isAIConfigured, loadSettings, saveSettings } from '../src/lib/settings/storage'
 import type { DetectedVideo, ResolvedVideo } from '../src/lib/types'
 
 const tabVideos = new Map<number, DetectedVideo>()
@@ -122,6 +123,39 @@ export default defineBackground(() => {
         })
       }
 
+      if (message.type === 'SHARE_SUMMARY_TO_TELEGRAPH') {
+        const settings = await loadSettings()
+        const imageEntries = collectShareImageEntries(message.summary, message.images)
+        const imageUrls = new Map<string, string>()
+
+        await Promise.all(imageEntries.map(async entry => {
+          const url = await uploadCloudinaryImage(settings, entry.dataUrl, createCloudinaryPublicId(message.video, entry.key))
+          imageUrls.set(entry.key, url)
+        }))
+
+        const content = buildTelegraphContent({
+          markdown: message.summary,
+          video: message.video,
+          imageUrls: Object.fromEntries(imageUrls),
+        })
+        const accessToken = await ensureTelegraphAccessToken(settings)
+        const page = await createTelegraphPage({
+          accessToken,
+          title: message.video.title,
+          authorName: settings.telegraphAuthorName.trim() || 'Bilibili Copilot',
+          authorUrl: settings.telegraphAuthorUrl.trim(),
+          content,
+        })
+
+        await browser.tabs.create({
+          url: page.url,
+        })
+
+        return ok({
+          url: page.url,
+        })
+      }
+
       return fail('Unknown message type.')
     } catch (error) {
       return fail(error)
@@ -228,3 +262,153 @@ const detectFromTabUrl = (url: string, title?: string): DetectedVideo => ({
   title,
   url,
 })
+
+const ensureTelegraphAccessToken = async (settings: Awaited<ReturnType<typeof loadSettings>>) => {
+  if (settings.telegraphAccessToken.trim().length > 0) {
+    return settings.telegraphAccessToken.trim()
+  }
+
+  const shortName = settings.telegraphShortName.trim() || 'bilibili-copilot'
+  const authorName = settings.telegraphAuthorName.trim() || 'Bilibili Copilot'
+  const authorUrl = settings.telegraphAuthorUrl.trim()
+  const response = await fetch('https://api.telegra.ph/createAccount', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: new URLSearchParams({
+      short_name: shortName,
+      author_name: authorName,
+      ...(authorUrl ? { author_url: authorUrl } : {}),
+    }),
+  })
+  const payload = await response.json() as TelegraphResponse<{ access_token: string }>
+  if (!payload.ok || !payload.result?.access_token) {
+    throw new Error(payload.error ?? '创建 Telegraph 账户失败。')
+  }
+
+  await saveSettings({
+    ...settings,
+    telegraphAccessToken: payload.result.access_token,
+    telegraphShortName: shortName,
+    telegraphAuthorName: authorName,
+    telegraphAuthorUrl: authorUrl,
+  })
+  return payload.result.access_token
+}
+
+const createTelegraphPage = async (input: {
+  accessToken: string
+  title: string
+  authorName: string
+  authorUrl: string
+  content: ReturnType<typeof buildTelegraphContent>
+}) => {
+  const response = await fetch('https://api.telegra.ph/createPage', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: new URLSearchParams({
+      access_token: input.accessToken,
+      title: input.title,
+      author_name: input.authorName,
+      ...(input.authorUrl ? { author_url: input.authorUrl } : {}),
+      content: JSON.stringify(input.content),
+      return_content: 'false',
+    }),
+  })
+  const payload = await response.json() as TelegraphResponse<{ url: string }>
+  if (!payload.ok || !payload.result?.url) {
+    throw new Error(payload.error ?? '创建 Telegraph 页面失败。')
+  }
+  return payload.result
+}
+
+const uploadCloudinaryImage = async (
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+  dataUrl: string,
+  publicId: string,
+) => {
+  const blob = dataUrlToBlob(dataUrl)
+  const timestamp = Math.floor(Date.now() / 1000)
+  const signature = await createCloudinarySignature({
+    publicId,
+    timestamp,
+    apiSecret: settings.cloudinaryApiSecret.trim(),
+  })
+
+  const formData = new FormData()
+  formData.append('file', blob)
+  formData.append('api_key', settings.cloudinaryApiKey.trim())
+  formData.append('timestamp', String(timestamp))
+  formData.append('public_id', publicId)
+  formData.append('signature', signature)
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${settings.cloudinaryCloudName.trim()}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  })
+  const payload = await response.json() as CloudinaryUploadResponse
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error?.message ?? '上传到 Cloudinary 失败。')
+  }
+  if (!payload.secure_url) {
+    throw new Error('Cloudinary 未返回图片地址。')
+  }
+  return payload.secure_url
+}
+
+const createCloudinaryPublicId = (video: ResolvedVideo, key: string) => {
+  const shareId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  return `bilibili-copilot/${video.bvid}/${shareId}/${key.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+}
+
+const createCloudinarySignature = async (input: {
+  publicId: string
+  timestamp: number
+  apiSecret: string
+}) => {
+  const base = `public_id=${input.publicId}&timestamp=${input.timestamp}${input.apiSecret}`
+  const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(base))
+  return Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+const dataUrlToBlob = (dataUrl: string) => {
+  const match = /^data:([^,]*),(.*)$/.exec(dataUrl)
+  if (!match?.[2]) {
+    throw new Error('图片数据无效。')
+  }
+
+  const metadata = match[1] ?? ''
+  const data = match[2]
+  if (metadata.includes(';base64')) {
+    const binary = atob(data)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index++) {
+      bytes[index] = binary.charCodeAt(index)
+    }
+    return new Blob([bytes], {
+      type: metadata.replace(/;base64$/, '') || 'application/octet-stream',
+    })
+  }
+
+  return new Blob([new TextEncoder().encode(decodeURIComponent(data))], {
+    type: metadata || 'application/octet-stream',
+  })
+}
+
+type TelegraphResponse<T> = {
+  ok: boolean
+  result?: T
+  error?: string
+}
+
+type CloudinaryUploadResponse = {
+  secure_url?: string
+  error?: {
+    message?: string
+  }
+}

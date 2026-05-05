@@ -43,6 +43,8 @@
   let saving = $state(false)
   let saved = $state(false)
   let exporting = $state(false)
+  let sharing = $state(false)
+  let sharedUrl = $state('')
   let error = $state('')
   let settings = $state<CopilotSettings>({ ...defaultSettings })
   let exportKeepTimestamps = $state(true)
@@ -360,6 +362,30 @@
     }
   }
 
+  const shareSummaryToTelegraph = async () => {
+    if (!summary || !video) {
+      return
+    }
+
+    sharing = true
+    sharedUrl = ''
+    error = ''
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'SHARE_SUMMARY_TO_TELEGRAPH',
+        video,
+        summary,
+        images: $state.snapshot(exportImages),
+      }) as RuntimeResponse<{ url: string }>
+      const payload = unwrap(response)
+      sharedUrl = payload.url
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    } finally {
+      sharing = false
+    }
+  }
+
   const handleExportImagesChange = (snapshot: ExportImageSnapshot) => {
     exportImages = snapshot
   }
@@ -652,6 +678,57 @@
           <span>自动获取 AI 建议图片</span>
         </label>
 
+        <label>
+          <span>Cloudinary Cloud Name</span>
+          <input bind:value={settings.cloudinaryCloudName} placeholder="cloud-name" />
+        </label>
+
+        <label>
+          <span>Cloudinary API Key</span>
+          <input bind:value={settings.cloudinaryApiKey} placeholder="api-key" />
+        </label>
+
+        <label>
+          <span>Cloudinary API Secret</span>
+          <input
+            bind:value={settings.cloudinaryApiSecret}
+            type="password"
+            autocomplete="new-password"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-form-type="other"
+            placeholder="api-secret"
+          />
+        </label>
+
+        <label>
+          <span>Telegraph Access Token</span>
+          <input
+            bind:value={settings.telegraphAccessToken}
+            type="password"
+            autocomplete="new-password"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-form-type="other"
+            placeholder="Auto-created on first share"
+          />
+        </label>
+
+        <label>
+          <span>Telegraph Short Name</span>
+          <input bind:value={settings.telegraphShortName} placeholder="bilibili-copilot" />
+        </label>
+
+        <label>
+          <span>Telegraph Author Name</span>
+          <input bind:value={settings.telegraphAuthorName} placeholder="Bilibili Copilot" />
+        </label>
+
+        <label>
+          <span>Telegraph Author URL</span>
+          <input bind:value={settings.telegraphAuthorUrl} placeholder="https://..." />
+        </label>
+
         {#if saved}
           <p class="saved">设置已保存。</p>
         {/if}
@@ -713,6 +790,12 @@
             <button class="secondary export-button" type="button" onclick={exportSummaryZip} disabled={exporting || loading}>
               {exporting ? '导出中...' : '导出 ZIP'}
             </button>
+            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegraph} disabled={sharing || loading || !video}>
+              {sharing ? 'Sharing...' : 'Share to Telegraph'}
+            </button>
+            {#if sharedUrl}
+              <a class="share-link" href={sharedUrl} target="_blank" rel="noreferrer">Open Telegraph page</a>
+            {/if}
           </div>
         {/if}
 
