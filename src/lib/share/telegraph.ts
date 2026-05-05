@@ -117,16 +117,40 @@ export const buildTelegraphContent = (input: {
     }
 
     if (block.type === 'list') {
-      nodes.push({
-        tag: 'ul',
-        children: block.items.map((item, itemIndex) => ({
+      let listItems: TelegraphNode[] = []
+      const flushList = () => {
+        if (listItems.length === 0) {
+          return
+        }
+
+        nodes.push({
+          tag: 'ul',
+          children: listItems,
+        })
+        listItems = []
+      }
+
+      block.items.forEach((item, itemIndex) => {
+        const itemNode: TelegraphNode = {
           tag: 'li',
-          children: [
-            ...renderInlineParts(item, input.video),
-            ...createManualImageNodes(createManualListItemImageKey(index, itemIndex), input),
-          ],
-        })),
+          children: renderInlineParts(item, input.video),
+        }
+        const imageNodes = createManualImageNodes(createManualListItemImageKey(index, itemIndex), input)
+
+        if (imageNodes.length > 0) {
+          flushList()
+          nodes.push({
+            tag: 'ul',
+            children: [itemNode],
+          })
+          nodes.push(...imageNodes)
+          return
+        }
+
+        listItems.push(itemNode)
       })
+
+      flushList()
       return
     }
 
