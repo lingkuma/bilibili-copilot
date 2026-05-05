@@ -142,6 +142,7 @@ export default defineBackground(() => {
         const page = await createTelegraphPage({
           accessToken,
           title: message.video.title,
+          slugTitle: createTelegraphSlugTitle(message.video),
           authorName: settings.telegraphAuthorName.trim() || 'Bilibili Copilot',
           authorUrl: settings.telegraphAuthorUrl.trim(),
           content,
@@ -300,6 +301,7 @@ const ensureTelegraphAccessToken = async (settings: Awaited<ReturnType<typeof lo
 const createTelegraphPage = async (input: {
   accessToken: string
   title: string
+  slugTitle: string
   authorName: string
   authorUrl: string
   content: ReturnType<typeof buildTelegraphContent>
@@ -311,6 +313,43 @@ const createTelegraphPage = async (input: {
     },
     body: new URLSearchParams({
       access_token: input.accessToken,
+      title: input.slugTitle,
+      author_name: input.authorName,
+      ...(input.authorUrl ? { author_url: input.authorUrl } : {}),
+      content: JSON.stringify(input.content),
+      return_content: 'false',
+    }),
+  })
+  const payload = await response.json() as TelegraphResponse<{ path: string; url: string }>
+  if (!payload.ok || !payload.result?.path || !payload.result.url) {
+    throw new Error(payload.error ?? '创建 Telegraph 页面失败。')
+  }
+  return editTelegraphPage({
+    accessToken: input.accessToken,
+    path: payload.result.path,
+    title: input.title,
+    authorName: input.authorName,
+    authorUrl: input.authorUrl,
+    content: input.content,
+  })
+}
+
+const editTelegraphPage = async (input: {
+  accessToken: string
+  path: string
+  title: string
+  authorName: string
+  authorUrl: string
+  content: ReturnType<typeof buildTelegraphContent>
+}) => {
+  const response = await fetch('https://api.telegra.ph/editPage', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: new URLSearchParams({
+      access_token: input.accessToken,
+      path: input.path,
       title: input.title,
       author_name: input.authorName,
       ...(input.authorUrl ? { author_url: input.authorUrl } : {}),
@@ -320,7 +359,7 @@ const createTelegraphPage = async (input: {
   })
   const payload = await response.json() as TelegraphResponse<{ url: string }>
   if (!payload.ok || !payload.result?.url) {
-    throw new Error(payload.error ?? '创建 Telegraph 页面失败。')
+    throw new Error(payload.error ?? 'Edit Telegraph page failed.')
   }
   return payload.result
 }
@@ -362,6 +401,10 @@ const uploadCloudinaryImage = async (
 const createCloudinaryPublicId = (video: ResolvedVideo, key: string) => {
   const shareId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   return `bilibili-copilot/${video.bvid}/${shareId}/${key.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+}
+
+const createTelegraphSlugTitle = (video: ResolvedVideo) => {
+  return `${video.bvid}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 const createCloudinarySignature = async (input: {
