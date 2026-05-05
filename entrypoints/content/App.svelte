@@ -22,7 +22,7 @@
   let video = $state<ResolvedVideo | null>(null)
   let subtitle = $state<SubtitleForAI | null>(null)
   let summary = $state('')
-  let selectedTemplateId = $state('outline')
+  let selectedTemplateId = $state('brief-outline')
   let loading = $state(false)
   let saving = $state(false)
   let saved = $state(false)

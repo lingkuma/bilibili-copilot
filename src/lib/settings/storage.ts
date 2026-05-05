@@ -6,9 +6,9 @@ const SETTINGS_KEY = 'bilibili-copilot-settings'
 export const defaultSettings: CopilotSettings = {
   apiBaseUrl: 'https://api.openai.com/v1',
   apiKey: '',
-  model: 'gpt-4.1-mini',
+  model: 'gpt-5.5',
   language: 'zh-CN',
-  defaultTemplateId: 'outline',
+  defaultTemplateId: 'brief-outline',
   includeTimestamps: true,
   autoSummaryEnabled: false,
   autoCaptureAiImages: false,
