@@ -18,6 +18,7 @@ export type RuntimeMessage =
   | {
     type: 'GET_SUBTITLE_FOR_VIDEO'
     video: DetectedVideo
+    force?: boolean
   }
   | {
     type: 'SUMMARIZE_VIDEO'

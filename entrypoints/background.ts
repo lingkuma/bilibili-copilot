@@ -6,9 +6,15 @@ import { extractBvidFromUrl, extractPageFromUrl, resolveVideo } from '../src/lib
 import { fail, ok, type RuntimeMessage, type StreamPortEvent, type StreamPortRequest } from '../src/lib/messages'
 import { buildTelegraphContent, collectShareImageEntries } from '../src/lib/share/telegraph'
 import { isAIConfigured, loadSettings, saveSettings } from '../src/lib/settings/storage'
-import type { DetectedVideo, ResolvedVideo } from '../src/lib/types'
+import type { DetectedVideo, ResolvedVideo, SubtitleForAI } from '../src/lib/types'
 
 const tabVideos = new Map<number, DetectedVideo>()
+const subtitleCache = new Map<string, Promise<SubtitlePayload>>()
+
+interface SubtitlePayload {
+  video: ResolvedVideo
+  subtitle: SubtitleForAI
+}
 
 export default defineBackground(() => {
   browser.runtime.onConnect.addListener(port => {
@@ -37,12 +43,7 @@ export default defineBackground(() => {
 
       if (message.type === 'GET_SUBTITLE_FOR_VIDEO') {
         const settings = await loadSettings()
-        const video = await resolveVideo(message.video)
-        const subtitle = await getSubtitleForAI(video, {
-          language: settings.language,
-          includeTimestamps: settings.includeTimestamps,
-        })
-        return ok({ video, subtitle })
+        return ok(await getCachedSubtitleForVideo(message.video, settings, message.force))
       }
 
       if (message.type === 'SUMMARIZE_VIDEO') {
@@ -51,11 +52,7 @@ export default defineBackground(() => {
           throw new Error('请先在设置里配置 AI API。')
         }
 
-        const video = await resolveVideo(message.video)
-        const subtitle = await getSubtitleForAI(video, {
-          language: settings.language,
-          includeTimestamps: settings.includeTimestamps,
-        })
+        const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings)
         if (!subtitle.available) {
           throw new Error(subtitle.reason)
         }
@@ -84,11 +81,7 @@ export default defineBackground(() => {
       if (message.type === 'GET_SUBTITLE_CURRENT_VIDEO') {
         const settings = await loadSettings()
         const video = await getActiveResolvedVideo()
-        const subtitle = await getSubtitleForAI(video, {
-          language: settings.language,
-          includeTimestamps: settings.includeTimestamps,
-        })
-        return ok({ video, subtitle })
+        return ok(await getCachedSubtitleForVideo(video, settings))
       }
 
       if (message.type === 'SUMMARIZE_CURRENT_VIDEO') {
@@ -97,11 +90,8 @@ export default defineBackground(() => {
           throw new Error('请先在设置页配置 AI API。')
         }
 
-        const video = await getActiveResolvedVideo()
-        const subtitle = await getSubtitleForAI(video, {
-          language: settings.language,
-          includeTimestamps: settings.includeTimestamps,
-        })
+        const detected = await getActiveResolvedVideo()
+        const { video, subtitle } = await getCachedSubtitleForVideo(detected, settings)
         if (!subtitle.available) {
           throw new Error(subtitle.reason)
         }
@@ -179,11 +169,7 @@ const handleStreamRequest = async (
       throw new Error('请先在设置里配置 AI API。')
     }
 
-    const video = await resolveVideo(message.video)
-    const subtitle = await getSubtitleForAI(video, {
-      language: settings.language,
-      includeTimestamps: settings.includeTimestamps,
-    })
+    const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings)
     if (!subtitle.available) {
       throw new Error(subtitle.reason)
     }
@@ -237,6 +223,45 @@ const safePost = (port: Browser.runtime.Port, message: StreamPortEvent) => {
   } catch {
     // The content page may have navigated or closed the floating window.
   }
+}
+
+const getCachedSubtitleForVideo = async (
+  detected: DetectedVideo,
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+  force = false,
+): Promise<SubtitlePayload> => {
+  const video = await resolveVideo(detected)
+  const cacheKey = createSubtitleCacheKey(video, settings)
+  let request = subtitleCache.get(cacheKey)
+  if (!request || force) {
+    const nextRequest = getSubtitleForAI(video, {
+      language: settings.language,
+      includeTimestamps: settings.includeTimestamps,
+    })
+      .then(subtitle => ({ video, subtitle }))
+      .catch(error => {
+        if (subtitleCache.get(cacheKey) === nextRequest) {
+          subtitleCache.delete(cacheKey)
+        }
+        throw error
+      })
+    request = nextRequest
+    subtitleCache.set(cacheKey, request)
+  }
+  return request
+}
+
+const createSubtitleCacheKey = (
+  video: ResolvedVideo,
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+) => {
+  return [
+    video.bvid,
+    video.cid,
+    video.page,
+    settings.language.trim(),
+    settings.includeTimestamps ? 'with-timestamps' : 'without-timestamps',
+  ].join(':')
 }
 
 const getActiveTab = async () => {

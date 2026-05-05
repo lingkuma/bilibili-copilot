@@ -39,7 +39,9 @@
   let subtitle = $state<SubtitleForAI | null>(null)
   let summary = $state('')
   let selectedTemplateId = $state('brief-outline')
-  let loading = $state(false)
+  let subtitleLoading = $state(false)
+  let summaryLoading = $state(false)
+  let loading = $derived(subtitleLoading || summaryLoading)
   let saving = $state(false)
   let saved = $state(false)
   let exporting = $state(false)
@@ -57,6 +59,7 @@
   let lastUrl = ''
   let intervalId: number | undefined
   let streamPort = $state<ReturnType<typeof browser.runtime.connect> | null>(null)
+  let subtitleRequestId = 0
 
   onMount(() => {
     void initialize()
@@ -64,7 +67,7 @@
       if (message.type === 'OPEN_FLOATING_PANEL') {
         expanded = true
         settingsOpen = false
-        void refreshSubtitle()
+        void ensureSubtitleLoaded()
       }
 
       if (message.type === 'OPEN_FLOATING_SETTINGS') {
@@ -106,6 +109,9 @@
     }
     error = ''
     closeStream()
+    summaryLoading = false
+    subtitleRequestId += 1
+    subtitleLoading = false
 
     const detected = detectVideo()
     if (detected.bvid) {
@@ -115,8 +121,8 @@
       })
     }
 
-    if (expanded && detected.bvid && !settingsOpen) {
-      void refreshSubtitle()
+    if (detected.bvid) {
+      void ensureSubtitleLoaded()
     }
   }
 
@@ -134,16 +140,26 @@
     return response.data as T
   }
 
+  const ensureSubtitleLoaded = async () => {
+    if (loading || video || subtitle) {
+      return
+    }
+    await refreshSubtitle(false)
+  }
+
   const openPanel = () => {
     expanded = true
     settingsOpen = false
     if (!video && !subtitle) {
-      void refreshSubtitle()
+      void ensureSubtitleLoaded()
     }
   }
 
-  const refreshSubtitle = async () => {
-    loading = true
+  const refreshSubtitle = async (forceOrEvent: boolean | Event = true) => {
+    const force = typeof forceOrEvent === 'boolean' ? forceOrEvent : true
+    const requestId = ++subtitleRequestId
+    const requestUrl = location.href
+    subtitleLoading = true
     error = ''
     try {
       const detected = detectVideo()
@@ -154,20 +170,28 @@
       const response = await browser.runtime.sendMessage({
         type: 'GET_SUBTITLE_FOR_VIDEO',
         video: detected,
+        force,
       }) as RuntimeResponse<SubtitlePayload>
       const payload = unwrap(response)
+      if (requestId !== subtitleRequestId || requestUrl !== location.href) {
+        return
+      }
       video = payload.video
       subtitle = payload.subtitle
     } catch (currentError) {
-      error = currentError instanceof Error ? currentError.message : String(currentError)
+      if (requestId === subtitleRequestId && requestUrl === location.href) {
+        error = currentError instanceof Error ? currentError.message : String(currentError)
+      }
     } finally {
-      loading = false
+      if (requestId === subtitleRequestId) {
+        subtitleLoading = false
+      }
     }
   }
 
   const summarize = async () => {
     closeStream()
-    loading = true
+    summaryLoading = true
     error = ''
     summary = ''
     exportImages = {
@@ -198,13 +222,13 @@
 
         if (message.type === 'SUMMARY_STREAM_DONE') {
           summary = message.summary
-          loading = false
+          summaryLoading = false
           closeStream()
         }
 
         if (message.type === 'SUMMARY_STREAM_ERROR') {
           error = message.error
-          loading = false
+          summaryLoading = false
           closeStream()
         }
       })
@@ -212,7 +236,7 @@
       port.onDisconnect.addListener(() => {
         if (streamPort === port) {
           streamPort = null
-          loading = false
+          summaryLoading = false
         }
       })
 
@@ -223,7 +247,7 @@
       })
     } catch (currentError) {
       error = currentError instanceof Error ? currentError.message : String(currentError)
-      loading = false
+      summaryLoading = false
       closeStream()
     }
   }
