@@ -10,12 +10,6 @@ import type { DetectedVideo, ResolvedVideo } from '../src/lib/types'
 const tabVideos = new Map<number, DetectedVideo>()
 
 export default defineBackground(() => {
-  browser.runtime.onInstalled.addListener(() => {
-    browser.sidePanel
-      ?.setPanelBehavior?.({ openPanelOnActionClick: true })
-      .catch(() => undefined)
-  })
-
   browser.runtime.onMessage.addListener(async (message: RuntimeMessage, sender) => {
     try {
       if (message.type === 'VIDEO_DETECTED') {
@@ -25,11 +19,46 @@ export default defineBackground(() => {
         return ok(null)
       }
 
-      if (message.type === 'OPEN_SIDE_PANEL') {
-        if (sender.tab?.windowId !== undefined) {
-          await browser.sidePanel.open({ windowId: sender.tab.windowId })
+      if (message.type === 'GET_SUBTITLE_FOR_VIDEO') {
+        const settings = await loadSettings()
+        const video = await resolveVideo(message.video)
+        const subtitle = await getSubtitleForAI(video, {
+          language: settings.language,
+          includeTimestamps: settings.includeTimestamps,
+        })
+        return ok({ video, subtitle })
+      }
+
+      if (message.type === 'SUMMARIZE_VIDEO') {
+        const settings = await loadSettings()
+        if (!isAIConfigured(settings)) {
+          throw new Error('请先在设置里配置 AI API。')
         }
-        return ok(null)
+
+        const video = await resolveVideo(message.video)
+        const subtitle = await getSubtitleForAI(video, {
+          language: settings.language,
+          includeTimestamps: settings.includeTimestamps,
+        })
+        if (!subtitle.available) {
+          throw new Error(subtitle.reason)
+        }
+
+        const template = findTemplate(message.templateId ?? settings.defaultTemplateId)
+        const summary = await summarizeSubtitle({
+          settings,
+          template,
+          video,
+          subtitleText: subtitle.text,
+        })
+
+        return ok({
+          video,
+          subtitle,
+          template,
+          summary,
+          templates: defaultTemplates,
+        })
       }
 
       if (message.type === 'GET_CURRENT_VIDEO') {

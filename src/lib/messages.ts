@@ -9,7 +9,19 @@ export type RuntimeMessage =
     type: 'GET_CURRENT_VIDEO'
   }
   | {
-    type: 'OPEN_SIDE_PANEL'
+    type: 'OPEN_FLOATING_PANEL'
+  }
+  | {
+    type: 'OPEN_FLOATING_SETTINGS'
+  }
+  | {
+    type: 'GET_SUBTITLE_FOR_VIDEO'
+    video: DetectedVideo
+  }
+  | {
+    type: 'SUMMARIZE_VIDEO'
+    video: DetectedVideo
+    templateId?: string
   }
   | {
     type: 'SUMMARIZE_CURRENT_VIDEO'

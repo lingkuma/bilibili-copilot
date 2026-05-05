@@ -5,11 +5,12 @@ export default defineConfig({
   manifest: {
     name: 'Bilibili Copilot',
     description: 'Summarize Bilibili videos from subtitles with your AI provider.',
-    permissions: ['storage', 'sidePanel', 'tabs'],
+    permissions: ['storage', 'tabs'],
     host_permissions: [
       'https://www.bilibili.com/*',
       'https://api.bilibili.com/*',
       'https://*.hdslb.com/*',
+      'https://api.openai.com/*',
     ],
     action: {
       default_title: 'Bilibili Copilot',

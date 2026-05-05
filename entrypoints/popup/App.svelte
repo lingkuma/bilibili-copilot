@@ -25,16 +25,12 @@
     }
   }
 
-  const openSidePanel = async () => {
+  const sendToActiveTab = async (type: 'OPEN_FLOATING_PANEL' | 'OPEN_FLOATING_SETTINGS') => {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true })
-    if (tab?.windowId !== undefined) {
-      await browser.sidePanel.open({ windowId: tab.windowId })
+    if (tab?.id !== undefined) {
+      await browser.tabs.sendMessage(tab.id, { type })
       window.close()
     }
-  }
-
-  const openOptions = () => {
-    void browser.runtime.openOptionsPage()
   }
 </script>
 
@@ -63,7 +59,7 @@
   {/if}
 
   <div class="actions">
-    <button class="primary" type="button" onclick={openSidePanel}>打开侧边栏</button>
-    <button class="secondary" type="button" onclick={openOptions}>设置</button>
+    <button class="primary" type="button" onclick={() => void sendToActiveTab('OPEN_FLOATING_PANEL')}>打开浮窗</button>
+    <button class="secondary" type="button" onclick={() => void sendToActiveTab('OPEN_FLOATING_SETTINGS')}>设置</button>
   </div>
 </main>
