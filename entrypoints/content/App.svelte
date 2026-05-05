@@ -4,7 +4,13 @@
   import { defaultTemplates } from '../../src/lib/ai/prompts'
   import { extractBvidFromUrl, extractPageFromUrl, stripBilibiliTitleSuffix } from '../../src/lib/bilibili/video'
   import { createZipBlob, type ZipFile } from '../../src/lib/export/zip'
-  import { parseConstrainedMarkdown, type InlinePart, type MarkdownBlock } from '../../src/lib/markdown/parse'
+  import {
+    createManualBlockImageKey,
+    createManualListItemImageKey,
+    parseConstrainedMarkdown,
+    type InlinePart,
+    type MarkdownBlock,
+  } from '../../src/lib/markdown/parse'
   import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
   import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI } from '../../src/lib/types'
@@ -281,6 +287,15 @@
     })
   }
 
+  const getCurrentVideoSeconds = () => {
+    const player = document.querySelector('video') as HTMLVideoElement | null
+    if (!player) {
+      throw new Error('没有找到当前页面的视频播放器。')
+    }
+
+    return Math.max(0, player.currentTime || 0)
+  }
+
   const captureVideoFrame = async (seconds: number) => {
     const player = document.querySelector('video') as HTMLVideoElement | null
     if (!player) {
@@ -455,14 +470,21 @@
         }
       }
 
+      lines.push(...renderImageReference(createManualBlockImageKey(index), '', assets, assetPaths))
+
       return lines
     }
 
     if (block.type === 'list') {
-      return block.items
-        .map(item => renderInlineParts(item))
-        .filter(Boolean)
-        .map(item => `- ${item}`)
+      const lines: string[] = []
+      block.items.forEach((item, itemIndex) => {
+        const text = renderInlineParts(item)
+        if (text) {
+          lines.push(`- ${text}`)
+        }
+        lines.push(...renderImageReference(createManualListItemImageKey(index, itemIndex), '', assets, assetPaths))
+      })
+      return lines
     }
 
     if (block.type === 'image') {
@@ -471,7 +493,9 @@
     }
 
     const paragraph = renderInlineParts(block.parts)
-    return paragraph ? [paragraph] : []
+    const lines = paragraph ? [paragraph] : []
+    lines.push(...renderImageReference(createManualBlockImageKey(index), '', assets, assetPaths))
+    return lines
   }
 
   const renderInlineParts = (parts: InlinePart[]) => {
@@ -835,6 +859,7 @@
               autoCaptureAiImages={settings.autoCaptureAiImages}
               onSeek={seekVideo}
               onCaptureFrame={captureVideoFrame}
+              onGetCurrentSeconds={getCurrentVideoSeconds}
               onImagesChange={handleExportImagesChange}
             />
           </article>

@@ -1,4 +1,10 @@
-import { parseConstrainedMarkdown, type InlinePart, type MarkdownBlock } from '../markdown/parse'
+import {
+  createManualBlockImageKey,
+  createManualListItemImageKey,
+  parseConstrainedMarkdown,
+  type InlinePart,
+  type MarkdownBlock,
+} from '../markdown/parse'
 import type { ResolvedVideo } from '../types'
 
 export type ShareImageState = {
@@ -39,16 +45,26 @@ export const collectShareImageEntries = (
   blocks.forEach((block, index) => {
     if (block.type === 'heading') {
       const key = createHeadingImageKey(block.parts)
-      if (!key || hasFollowingImageBlock(blocks, index, key)) {
-        return
+      if (key && !hasFollowingImageBlock(blocks, index, key)) {
+        collectImageEntry(key, '', false, snapshot, entries, missingLabels, seenKeys)
       }
-      collectImageEntry(key, '', false, snapshot, entries, missingLabels, seenKeys)
+      collectImageEntry(createManualBlockImageKey(index), '', false, snapshot, entries, missingLabels, seenKeys)
+      return
+    }
+
+    if (block.type === 'list') {
+      block.items.forEach((_, itemIndex) => {
+        collectImageEntry(createManualListItemImageKey(index, itemIndex), '', false, snapshot, entries, missingLabels, seenKeys)
+      })
       return
     }
 
     if (block.type === 'image') {
       collectImageEntry(createImageKeyForBlock(blocks, index), block.label, true, snapshot, entries, missingLabels, seenKeys)
+      return
     }
+
+    collectImageEntry(createManualBlockImageKey(index), '', false, snapshot, entries, missingLabels, seenKeys)
   })
 
   if (missingLabels.length > 0) {
@@ -62,6 +78,7 @@ export const buildTelegraphContent = (input: {
   markdown: string
   video: ResolvedVideo
   imageUrls: Record<string, string>
+  imageLabels?: Record<string, string>
 }) => {
   const blocks = parseConstrainedMarkdown(input.markdown)
   const nodes: TelegraphNode[] = [
@@ -95,15 +112,19 @@ export const buildTelegraphContent = (input: {
       if (imageUrl) {
         nodes.push(createFigureNode(imageUrl, imageCaptionFromParts(block.parts)))
       }
+      pushManualImageNode(nodes, createManualBlockImageKey(index), input)
       return
     }
 
     if (block.type === 'list') {
       nodes.push({
         tag: 'ul',
-        children: block.items.map(item => ({
+        children: block.items.map((item, itemIndex) => ({
           tag: 'li',
-          children: renderInlineParts(item, input.video),
+          children: [
+            ...renderInlineParts(item, input.video),
+            ...createManualImageNodes(createManualListItemImageKey(index, itemIndex), input),
+          ],
         })),
       })
       return
@@ -125,6 +146,7 @@ export const buildTelegraphContent = (input: {
         children,
       })
     }
+    pushManualImageNode(nodes, createManualBlockImageKey(index), input)
   })
 
   return nodes
@@ -176,6 +198,28 @@ const createFigureNode = (src: string, caption: string): TelegraphNode => ({
       : []),
   ],
 })
+
+const pushManualImageNode = (
+  nodes: TelegraphNode[],
+  key: string,
+  input: {
+    imageUrls: Record<string, string>
+    imageLabels?: Record<string, string>
+  },
+) => {
+  nodes.push(...createManualImageNodes(key, input))
+}
+
+const createManualImageNodes = (
+  key: string,
+  input: {
+    imageUrls: Record<string, string>
+    imageLabels?: Record<string, string>
+  },
+) => {
+  const imageUrl = input.imageUrls[key]
+  return imageUrl ? [createFigureNode(imageUrl, input.imageLabels?.[key] ?? '')] : []
+}
 
 const renderInlineParts = (parts: InlinePart[], video: ResolvedVideo): TelegraphNode[] => {
   return parts.flatMap<TelegraphNode>(part => {

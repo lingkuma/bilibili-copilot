@@ -34,6 +34,12 @@ export type MarkdownBlock =
     items: InlinePart[][]
   }
 
+export const createManualBlockImageKey = (index: number) => `manual:block:${index}`
+
+export const createManualListItemImageKey = (blockIndex: number, itemIndex: number) => (
+  `manual:list:${blockIndex}:${itemIndex}`
+)
+
 const tokenPattern = /(\[(\d{1,2}:\d{2}(?::\d{2})?)(?:\s*-\s*(\d{1,2}:\d{2}(?::\d{2})?))?\]|\*\*([^*]+)\*\*)/g
 const imagePattern = /^\[<image>@(\d{1,2}:\d{2}(?::\d{2})?)\]$/i
 
@@ -94,22 +100,11 @@ export const parseConstrainedMarkdown = (markdown: string): MarkdownBlock[] => {
       continue
     }
 
-    const paragraphLines: string[] = []
-    while (
-      index < lines.length
-      && (lines[index] ?? '').trim()
-      && !/^(#{1,3})\s+/.test((lines[index] ?? '').trim())
-      && !/^\s*[-*]\s+/.test(lines[index] ?? '')
-      && !imagePattern.test((lines[index] ?? '').trim())
-    ) {
-      paragraphLines.push((lines[index] ?? '').trim())
-      index++
-    }
-
     blocks.push({
       type: 'paragraph',
-      parts: parseInlineParts(paragraphLines.join(' ')),
+      parts: parseInlineParts(trimmed),
     })
+    index++
   }
 
   return blocks

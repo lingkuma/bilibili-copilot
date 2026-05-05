@@ -127,6 +127,7 @@ export default defineBackground(() => {
           markdown: message.summary,
           video: message.video,
           imageUrls: Object.fromEntries(imageUrls),
+          imageLabels: Object.fromEntries(imageEntries.map(entry => [entry.key, entry.label])),
         })
         const accessToken = await ensureTelegraphAccessToken(settings)
         const page = await createTelegraphPage({

@@ -1,5 +1,7 @@
 <script lang="ts">
   import {
+    createManualBlockImageKey,
+    createManualListItemImageKey,
     parseConstrainedMarkdown,
     parseTimestamp,
     type InlinePart,
@@ -26,12 +28,14 @@
     autoCaptureAiImages = false,
     onSeek,
     onCaptureFrame,
+    onGetCurrentSeconds,
     onImagesChange,
   }: {
     markdown: string
     autoCaptureAiImages?: boolean
     onSeek: (seconds: number) => void
     onCaptureFrame: (seconds: number) => Promise<string>
+    onGetCurrentSeconds: () => number
     onImagesChange?: (snapshot: ImageSnapshot) => void
   } = $props()
 
@@ -167,6 +171,37 @@
     void captureFrame(key, seconds, formatTimestamp(seconds), 'manual')
   }
 
+  const insertCurrentImage = (key: string) => {
+    if (!key) {
+      return
+    }
+
+    if (deletedImageKeys[key]) {
+      const nextDeleted = {
+        ...deletedImageKeys,
+      }
+      delete nextDeleted[key]
+      deletedImageKeys = nextDeleted
+    }
+
+    if (imageStates[key]?.status === 'loading') {
+      return
+    }
+
+    try {
+      const seconds = Math.max(0, onGetCurrentSeconds())
+      void captureFrame(key, seconds, formatTimestamp(seconds), 'manual')
+    } catch (error) {
+      imageStates[key] = {
+        status: 'error',
+        source: 'manual',
+        seconds: 0,
+        label: formatTimestamp(0),
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
   const updateFrameLabel = (
     key: string,
     value: string,
@@ -263,6 +298,25 @@
     return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
   }
 </script>
+
+{#snippet lineInsert(key: string)}
+  <button
+    class="line-insert"
+    type="button"
+    title="在这行下面插入当前画面"
+    aria-label="在这行下面插入当前画面"
+    onclick={() => { insertCurrentImage(key) }}
+  >
+    +
+  </button>
+{/snippet}
+
+{#snippet manualFrame(key: string)}
+  {#if imageStates[key] && !deletedImageKeys[key]}
+    {@const image = imageStates[key]}
+    {@render frameBlock(key, image.seconds, image.label, 'manual')}
+  {/if}
+{/snippet}
 
 {#snippet inline(parts: InlinePart[], imageKey = '')}
   {#each parts as part, index (index)}
@@ -362,31 +416,51 @@
 <div class="markdown">
   {#each blocks as block, index (index)}
       {#if block.type === 'heading'}
+      {@const lineImageKey = createManualBlockImageKey(index)}
       {#if block.level === 1}
-        <h1>{@render inline(block.parts)}</h1>
+        <div class="markdown-line heading-line level-1">
+          <h1>{@render inline(block.parts)}</h1>
+          {@render lineInsert(lineImageKey)}
+        </div>
+        {@render manualFrame(lineImageKey)}
       {:else if block.level === 2}
         {@const imageKey = createHeadingImageKey(block.parts)}
-        <h2>{@render inline(block.parts, imageKey)}</h2>
+        <div class="markdown-line heading-line level-2">
+          <h2>{@render inline(block.parts, imageKey)}</h2>
+          {@render lineInsert(lineImageKey)}
+        </div>
         {#if imageKey && imageStates[imageKey] && !deletedImageKeys[imageKey] && !hasFollowingImageBlock(index, imageKey)}
           {@const timestamp = firstTimestamp(block.parts)}
           {#if timestamp}
             {@render frameBlock(imageKey, timestamp.startSeconds, formatTimestamp(timestamp.startSeconds), 'manual')}
           {/if}
         {/if}
+        {@render manualFrame(lineImageKey)}
       {:else}
         {@const imageKey = createHeadingImageKey(block.parts)}
-        <h3>{@render inline(block.parts, imageKey)}</h3>
+        <div class="markdown-line heading-line level-3">
+          <h3>{@render inline(block.parts, imageKey)}</h3>
+          {@render lineInsert(lineImageKey)}
+        </div>
         {#if imageKey && imageStates[imageKey] && !deletedImageKeys[imageKey] && !hasFollowingImageBlock(index, imageKey)}
           {@const timestamp = firstTimestamp(block.parts)}
           {#if timestamp}
             {@render frameBlock(imageKey, timestamp.startSeconds, formatTimestamp(timestamp.startSeconds), 'manual')}
           {/if}
         {/if}
+        {@render manualFrame(lineImageKey)}
       {/if}
     {:else if block.type === 'list'}
       <ul>
         {#each block.items as item, itemIndex (itemIndex)}
-          <li>{@render inline(item)}</li>
+          {@const lineImageKey = createManualListItemImageKey(index, itemIndex)}
+          <li>
+            <div class="markdown-line list-line">
+              <span>{@render inline(item)}</span>
+              {@render lineInsert(lineImageKey)}
+            </div>
+            {@render manualFrame(lineImageKey)}
+          </li>
         {/each}
       </ul>
     {:else if block.type === 'image'}
@@ -395,7 +469,12 @@
         {@render frameBlock(imageKey, block.seconds, block.label, 'ai')}
       {/if}
     {:else}
-      <p>{@render inline(block.parts)}</p>
+      {@const lineImageKey = createManualBlockImageKey(index)}
+      <div class="markdown-line paragraph-line">
+        <p>{@render inline(block.parts)}</p>
+        {@render lineInsert(lineImageKey)}
+      </div>
+      {@render manualFrame(lineImageKey)}
     {/if}
   {/each}
 </div>
