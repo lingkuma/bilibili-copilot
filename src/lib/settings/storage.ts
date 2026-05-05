@@ -8,9 +8,10 @@ export const defaultSettings: CopilotSettings = {
   apiKey: '',
   model: 'gpt-4.1-mini',
   language: 'zh-CN',
-  defaultTemplateId: 'summary',
+  defaultTemplateId: 'outline',
   includeTimestamps: true,
   autoSummaryEnabled: false,
+  autoCaptureAiImages: false,
 }
 
 export const loadSettings = async () => {

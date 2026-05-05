@@ -325,8 +325,41 @@ button:disabled {
   vertical-align: 1px;
 }
 
+.timestamp-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  vertical-align: 1px;
+}
+
+.timestamp-wrap .timestamp {
+  margin: 0;
+}
+
 .timestamp:hover {
   background: #dfeaff;
+}
+
+.timestamp-insert {
+  width: auto;
+  height: 22px;
+  padding: 0 7px;
+  border-color: #d8d0c7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5a5650;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  transform: translateX(-2px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.timestamp-wrap:hover .timestamp-insert,
+.timestamp-wrap:focus-within .timestamp-insert {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .frame-block {
@@ -346,9 +379,34 @@ button:disabled {
   border-bottom: 1px solid #ebe6df;
 }
 
-.frame-block figcaption span {
+.frame-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.frame-meta span {
+  flex: none;
   color: #6c6a64;
   font-size: 12px;
+}
+
+.frame-time {
+  width: 82px;
+  height: 28px;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: #2463c9;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.frame-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
 }
 
 .frame-action {
@@ -358,6 +416,10 @@ button:disabled {
   color: #141413;
   padding: 0 10px;
   font-size: 12px;
+}
+
+.frame-action.danger {
+  color: #8f2323;
 }
 
 .frame-block img {
@@ -381,5 +443,15 @@ button:disabled {
   .window {
     right: 14px;
     bottom: 72px;
+  }
+
+  .frame-block figcaption {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .frame-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }

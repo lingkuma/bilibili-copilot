@@ -52,6 +52,7 @@ export interface CopilotSettings {
   defaultTemplateId: string
   includeTimestamps: boolean
   autoSummaryEnabled: boolean
+  autoCaptureAiImages: boolean
 }
 
 export interface PromptTemplate {

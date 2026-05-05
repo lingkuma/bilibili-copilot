@@ -22,7 +22,7 @@
   let video = $state<ResolvedVideo | null>(null)
   let subtitle = $state<SubtitleForAI | null>(null)
   let summary = $state('')
-  let selectedTemplateId = $state('summary')
+  let selectedTemplateId = $state('outline')
   let loading = $state(false)
   let saving = $state(false)
   let saved = $state(false)
@@ -386,6 +386,11 @@
           <span>自动总结新打开的视频</span>
         </label>
 
+        <label class="check">
+          <input bind:checked={settings.autoCaptureAiImages} type="checkbox" />
+          <span>自动获取 AI 建议图片</span>
+        </label>
+
         {#if saved}
           <p class="saved">设置已保存。</p>
         {/if}
@@ -441,7 +446,12 @@
         {#if summary}
           <article class="summary">
             <p class="label">AI 输出</p>
-            <MarkdownView markdown={summary} onSeek={seekVideo} onCaptureFrame={captureVideoFrame} />
+            <MarkdownView
+              markdown={summary}
+              autoCaptureAiImages={settings.autoCaptureAiImages}
+              onSeek={seekVideo}
+              onCaptureFrame={captureVideoFrame}
+            />
           </article>
         {:else if loading}
           <article class="summary pending">
