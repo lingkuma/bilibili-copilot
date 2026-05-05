@@ -102,7 +102,10 @@ export const parseInlineParts = (text: string): InlinePart[] => {
       })
     }
 
-    const [label, start, end, strong] = match
+    const label = match[0] ?? ''
+    const start = match[2]
+    const end = match[3]
+    const strong = match[4]
     if (start) {
       const startSeconds = parseTimestamp(start)
       const endSeconds = end ? parseTimestamp(end) : undefined

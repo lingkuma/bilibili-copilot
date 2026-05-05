@@ -315,10 +315,10 @@ button:disabled {
   height: 22px;
   margin: 0 2px;
   padding: 0 7px;
-  border: 1px solid #e0c8b8;
+  border: 1px solid #b9d2ff;
   border-radius: 999px;
-  background: #fff7f2;
-  color: #a9583e;
+  background: #eef5ff;
+  color: #2463c9;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -326,7 +326,7 @@ button:disabled {
 }
 
 .timestamp:hover {
-  background: #f5e3d9;
+  background: #dfeaff;
 }
 
 @media (max-width: 520px) {
