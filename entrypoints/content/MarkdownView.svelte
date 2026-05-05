@@ -172,6 +172,30 @@
     }
   }
 
+  const adjustFrameSeconds = (
+    key: string,
+    delta: number,
+    fallbackSeconds: number,
+    fallbackLabel: string,
+    source: ImageSource,
+  ) => {
+    const current = imageStates[key] ?? {
+      status: 'idle' as const,
+      source,
+      seconds: fallbackSeconds,
+      label: fallbackLabel,
+    }
+    const parsedSeconds = parseTimestamp(current.label.trim())
+    const nextSeconds = Math.max(0, (parsedSeconds ?? current.seconds ?? fallbackSeconds) + delta)
+
+    imageStates[key] = {
+      ...current,
+      seconds: nextSeconds,
+      label: formatTimestamp(nextSeconds),
+      error: undefined,
+    }
+  }
+
   const recaptureFrame = (
     key: string,
     fallbackSeconds: number,
@@ -262,7 +286,14 @@
   <figure class="frame-block">
     <figcaption>
       <div class="frame-meta">
-        <span>视频画面</span>
+        <button
+          class="frame-step"
+          type="button"
+          aria-label="时间戳减少 1 秒"
+          onclick={() => { adjustFrameSeconds(key, -1, seconds, label, source) }}
+        >
+          -1s
+        </button>
         <input
           class="frame-time"
           value={image.label}
@@ -271,6 +302,14 @@
             updateFrameLabel(key, event.currentTarget.value, seconds, source)
           }}
         />
+        <button
+          class="frame-step"
+          type="button"
+          aria-label="时间戳增加 1 秒"
+          onclick={() => { adjustFrameSeconds(key, 1, seconds, label, source) }}
+        >
+          +1s
+        </button>
       </div>
       <div class="frame-actions">
         <button
