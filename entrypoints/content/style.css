@@ -328,7 +328,7 @@ button:disabled {
 .timestamp-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  position: relative;
   margin: 0 2px;
   vertical-align: 1px;
 }
@@ -342,6 +342,10 @@ button:disabled {
 }
 
 .timestamp-insert {
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  z-index: 1;
   width: auto;
   height: 22px;
   padding: 0 7px;
@@ -352,14 +356,17 @@ button:disabled {
   font-size: 12px;
   line-height: 1;
   opacity: 0;
-  transform: translateX(-2px);
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-2px);
   transition: opacity 0.14s ease, transform 0.14s ease;
+  white-space: nowrap;
 }
 
 .timestamp-wrap:hover .timestamp-insert,
 .timestamp-wrap:focus-within .timestamp-insert {
   opacity: 1;
-  transform: translateX(0);
+  pointer-events: auto;
+  transform: translateY(-50%) translateX(0);
 }
 
 .frame-block {
