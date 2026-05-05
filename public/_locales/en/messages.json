@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "Bilibili Copilot",
+    "description": "Extension name shown in Chrome and the Chrome Web Store."
+  },
+  "extensionDescription": {
+    "message": "Summarize Bilibili videos from subtitles with your AI provider.",
+    "description": "Extension description shown in Chrome and the Chrome Web Store."
+  }
+}

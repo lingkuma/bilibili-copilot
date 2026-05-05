@@ -3,8 +3,9 @@ import { defineConfig } from 'wxt'
 export default defineConfig({
   modules: ['@wxt-dev/module-svelte'],
   manifest: {
-    name: 'Bilibili Copilot',
-    description: 'Summarize Bilibili videos from subtitles with your AI provider.',
+    default_locale: 'en',
+    name: '__MSG_extensionName__',
+    description: '__MSG_extensionDescription__',
     permissions: ['storage', 'tabs'],
     host_permissions: [
       'https://www.bilibili.com/*',
@@ -15,7 +16,7 @@ export default defineConfig({
       'https://api.cloudinary.com/*',
     ],
     action: {
-      default_title: 'Bilibili Copilot',
+      default_title: '__MSG_extensionName__',
     },
   },
 })

@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "Bilibili Copilot",
+    "description": "Chrome 和 Chrome 网上应用店中显示的扩展名称。"
+  },
+  "extensionDescription": {
+    "message": "使用你的 AI 服务商，根据字幕总结 Bilibili 视频内容。",
+    "description": "Chrome 和 Chrome 网上应用店中显示的扩展描述。"
+  }
+}
