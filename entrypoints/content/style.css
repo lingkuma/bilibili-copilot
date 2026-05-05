@@ -216,6 +216,20 @@ button:disabled {
   color: #ffffff;
 }
 
+.export-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #f5f0e8;
+}
+
+.export-button {
+  width: 100%;
+}
+
 .secondary,
 .ghost {
   border-color: #e6dfd8;

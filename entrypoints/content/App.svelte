@@ -3,6 +3,8 @@
   import { browser } from 'wxt/browser'
   import { defaultTemplates } from '../../src/lib/ai/prompts'
   import { extractBvidFromUrl, extractPageFromUrl, stripBilibiliTitleSuffix } from '../../src/lib/bilibili/video'
+  import { createZipBlob, type ZipFile } from '../../src/lib/export/zip'
+  import { parseConstrainedMarkdown, type InlinePart, type MarkdownBlock } from '../../src/lib/markdown/parse'
   import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
   import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI } from '../../src/lib/types'
@@ -17,6 +19,20 @@
     template: PromptTemplate
   }
 
+  type ExportImageState = {
+    status: 'idle' | 'loading' | 'loaded' | 'error'
+    source: 'ai' | 'manual'
+    seconds: number
+    label: string
+    dataUrl?: string
+    error?: string
+  }
+
+  type ExportImageSnapshot = {
+    images: Record<string, ExportImageState>
+    deletedImageKeys: Record<string, true>
+  }
+
   let expanded = $state(false)
   let settingsOpen = $state(false)
   let video = $state<ResolvedVideo | null>(null)
@@ -26,8 +42,15 @@
   let loading = $state(false)
   let saving = $state(false)
   let saved = $state(false)
+  let exporting = $state(false)
   let error = $state('')
   let settings = $state<CopilotSettings>({ ...defaultSettings })
+  let exportKeepTimestamps = $state(true)
+  let exportKeepImageTags = $state(false)
+  let exportImages = $state<ExportImageSnapshot>({
+    images: {},
+    deletedImageKeys: {},
+  })
 
   let lastUrl = ''
   let intervalId: number | undefined
@@ -75,6 +98,10 @@
     video = null
     subtitle = null
     summary = ''
+    exportImages = {
+      images: {},
+      deletedImageKeys: {},
+    }
     error = ''
     closeStream()
 
@@ -141,6 +168,10 @@
     loading = true
     error = ''
     summary = ''
+    exportImages = {
+      images: {},
+      deletedImageKeys: {},
+    }
     try {
       const detected = detectVideo()
       if (!detected.bvid) {
@@ -311,6 +342,224 @@
     })
   }
 
+  const exportSummaryZip = () => {
+    if (!summary) {
+      return
+    }
+
+    exporting = true
+    error = ''
+    try {
+      const files = buildExportFiles()
+      const zip = createZipBlob(files)
+      downloadBlob(zip, `${video?.bvid ?? 'bilibili-note'}.zip`)
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    } finally {
+      exporting = false
+    }
+  }
+
+  const handleExportImagesChange = (snapshot: ExportImageSnapshot) => {
+    exportImages = snapshot
+  }
+
+  const buildExportFiles = (): ZipFile[] => {
+    const assets: ZipFile[] = []
+    const assetPaths = new Map<string, string>()
+    const blocks = parseConstrainedMarkdown(summary)
+    const sections: string[] = []
+
+    blocks.forEach((block, index) => {
+      const lines = renderExportBlock(block, blocks, index, assets, assetPaths)
+      if (lines.length > 0) {
+        sections.push(lines.join('\n'))
+      }
+    })
+
+    const note = `${sections.join('\n\n').trim()}\n`
+    return [
+      {
+        path: 'note.md',
+        data: note,
+      },
+      ...assets,
+    ]
+  }
+
+  const renderExportBlock = (
+    block: MarkdownBlock,
+    blocks: MarkdownBlock[],
+    index: number,
+    assets: ZipFile[],
+    assetPaths: Map<string, string>,
+  ) => {
+    if (block.type === 'heading') {
+      const heading = `${'#'.repeat(block.level)} ${renderInlineParts(block.parts)}`
+      const lines = heading.trim() ? [heading] : []
+
+      if (block.level > 1) {
+        const imageKey = createHeadingImageKey(block.parts)
+        if (imageKey && !hasFollowingExportImageBlock(blocks, index, imageKey)) {
+          lines.push(...renderImageReference(imageKey, '', assets, assetPaths))
+        }
+      }
+
+      return lines
+    }
+
+    if (block.type === 'list') {
+      return block.items
+        .map(item => renderInlineParts(item))
+        .filter(Boolean)
+        .map(item => `- ${item}`)
+    }
+
+    if (block.type === 'image') {
+      const imageKey = createImageKeyForExportBlock(blocks, index)
+      return renderImageReference(imageKey, block.label, assets, assetPaths)
+    }
+
+    const paragraph = renderInlineParts(block.parts)
+    return paragraph ? [paragraph] : []
+  }
+
+  const renderInlineParts = (parts: InlinePart[]) => {
+    const text = parts
+      .map(part => {
+        if (part.type === 'timestamp') {
+          return exportKeepTimestamps ? `[${part.label}]` : ''
+        }
+
+        if (part.type === 'strong') {
+          return `**${part.text}**`
+        }
+
+        return part.text
+      })
+      .join('')
+
+    return normalizeMarkdownText(text)
+  }
+
+  const renderImageReference = (
+    key: string,
+    fallbackLabel: string,
+    assets: ZipFile[],
+    assetPaths: Map<string, string>,
+  ) => {
+    if (exportImages.deletedImageKeys[key]) {
+      return []
+    }
+
+    const image = exportImages.images[key]
+    const imageLabel = image?.label || fallbackLabel
+    const lines: string[] = []
+
+    if (image?.status === 'loaded' && image.dataUrl) {
+      let assetPath = assetPaths.get(key)
+      if (!assetPath) {
+        const imageNumber = assetPaths.size + 1
+        const filename = imageNumber === 1
+          ? 'image.jpg'
+          : `image-${String(imageNumber).padStart(2, '0')}.jpg`
+        assetPath = `assets/${filename}`
+        assetPaths.set(key, assetPath)
+        assets.push({
+          path: assetPath,
+          data: dataUrlToBytes(image.dataUrl),
+        })
+      }
+      lines.push(`![${escapeImageAlt(imageLabel)}](${assetPath})`)
+    }
+
+    if (exportKeepImageTags && imageLabel) {
+      lines.push(`[<image>@${imageLabel}]`)
+    }
+
+    return lines.filter(Boolean)
+  }
+
+  const createHeadingImageKey = (parts: InlinePart[]) => {
+    const timestamp = parts.find(part => part.type === 'timestamp')
+    const heading = parts
+      .map(part => {
+        if (part.type === 'timestamp') {
+          return part.label
+        }
+        return part.text
+      })
+      .join('')
+      .trim()
+
+    return timestamp ? `section:${timestamp.startSeconds}:${heading}` : ''
+  }
+
+  const createImageKeyForExportBlock = (blocks: MarkdownBlock[], index: number) => {
+    for (let currentIndex = index - 1; currentIndex >= 0; currentIndex--) {
+      const block = blocks[currentIndex]
+      if (block?.type === 'heading') {
+        const key = createHeadingImageKey(block.parts)
+        if (key) {
+          return key
+        }
+      }
+    }
+
+    const block = blocks[index]
+    return block?.type === 'image' ? `image:${index}:${block.label}` : `image:${index}`
+  }
+
+  const hasFollowingExportImageBlock = (blocks: MarkdownBlock[], index: number, key: string) => {
+    const nextBlock = blocks[index + 1]
+    return nextBlock?.type === 'image' && createImageKeyForExportBlock(blocks, index + 1) === key
+  }
+
+  const normalizeMarkdownText = (text: string) => {
+    return text
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/[ \t]+([,.;:!?，。；：！？、])/g, '$1')
+      .trim()
+  }
+
+  const escapeImageAlt = (text: string) => {
+    return text.replace(/[[\]\\]/g, '\\$&')
+  }
+
+  const dataUrlToBytes = (dataUrl: string) => {
+    const match = /^data:([^,]*),(.*)$/.exec(dataUrl)
+    if (!match?.[2]) {
+      throw new Error('导出的图片数据无效。')
+    }
+
+    const metadata = match[1] ?? ''
+    const data = match[2]
+    if (metadata.includes(';base64')) {
+      const binary = window.atob(data)
+      const bytes = new Uint8Array(binary.length)
+      for (let index = 0; index < binary.length; index++) {
+        bytes[index] = binary.charCodeAt(index)
+      }
+      return bytes
+    }
+
+    return new TextEncoder().encode(decodeURIComponent(data))
+  }
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.style.display = 'none'
+    document.body.append(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url)
+    }, 1000)
+  }
+
   const persistSettings = async () => {
     saving = true
     saved = false
@@ -451,6 +700,22 @@
           {loading ? '处理中...' : '开始总结'}
         </button>
 
+        {#if summary}
+          <div class="export-panel">
+            <label class="check">
+              <input bind:checked={exportKeepTimestamps} type="checkbox" />
+              <span>导出时保留时间戳</span>
+            </label>
+            <label class="check">
+              <input bind:checked={exportKeepImageTags} type="checkbox" />
+              <span>导出时保留 image 标签</span>
+            </label>
+            <button class="secondary export-button" type="button" onclick={exportSummaryZip} disabled={exporting || loading}>
+              {exporting ? '导出中...' : '导出 ZIP'}
+            </button>
+          </div>
+        {/if}
+
         {#if error}
           <div class="error">{error}</div>
         {/if}
@@ -463,6 +728,7 @@
               autoCaptureAiImages={settings.autoCaptureAiImages}
               onSeek={seekVideo}
               onCaptureFrame={captureVideoFrame}
+              onImagesChange={handleExportImagesChange}
             />
           </article>
         {:else if loading}

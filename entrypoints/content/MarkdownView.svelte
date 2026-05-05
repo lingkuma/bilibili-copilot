@@ -16,21 +16,35 @@
     error?: string
   }
 
+  type ImageSnapshot = {
+    images: Record<string, ImageState>
+    deletedImageKeys: Record<string, true>
+  }
+
   let {
     markdown,
     autoCaptureAiImages = false,
     onSeek,
     onCaptureFrame,
+    onImagesChange,
   }: {
     markdown: string
     autoCaptureAiImages?: boolean
     onSeek: (seconds: number) => void
     onCaptureFrame: (seconds: number) => Promise<string>
+    onImagesChange?: (snapshot: ImageSnapshot) => void
   } = $props()
 
   let blocks = $derived(parseConstrainedMarkdown(markdown))
   let imageStates = $state<Record<string, ImageState>>({})
   let deletedImageKeys = $state<Record<string, true>>({})
+
+  $effect(() => {
+    onImagesChange?.({
+      images: $state.snapshot(imageStates),
+      deletedImageKeys: $state.snapshot(deletedImageKeys),
+    })
+  })
 
   $effect(() => {
     if (!autoCaptureAiImages) {
