@@ -307,7 +307,14 @@
     aria-label="在这行下面插入当前画面"
     onclick={() => { insertCurrentImage(key) }}
   >
-    +
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      focusable="false"
+    >
+      <circle cx="8" cy="8" r="7" />
+      <path d="M8 4.75v6.5M4.75 8h6.5" />
+    </svg>
   </button>
 {/snippet}
 

@@ -336,10 +336,8 @@ button:disabled {
 }
 
 .markdown-line {
-  display: grid;
-  align-items: flex-start;
-  grid-template-columns: minmax(0, 1fr) 24px;
-  gap: 6px;
+  position: relative;
+  padding-right: 28px;
 }
 
 .markdown-line > :first-child {
@@ -347,42 +345,48 @@ button:disabled {
 }
 
 .line-insert {
-  width: 22px;
-  height: 22px;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 0;
   padding: 0;
-  border-color: #d8d0c7;
-  border-radius: 999px;
-  background: #ffffff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #5a5650;
-  font-size: 16px;
-  line-height: 18px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.14s ease, transform 0.14s ease;
-  transform: translateX(-2px);
+  transform: translateY(-50%) translateX(-2px);
+}
+
+.line-insert svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.line-insert:hover {
+  color: #cc785c;
 }
 
 .markdown-line:hover .line-insert,
 .markdown-line:focus-within .line-insert {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0);
-}
-
-.heading-line.level-1 .line-insert {
-  margin-top: 2px;
-}
-
-.heading-line.level-2 .line-insert {
-  margin-top: 14px;
-}
-
-.heading-line.level-3 .line-insert {
-  margin-top: 12px;
-}
-
-.paragraph-line .line-insert {
-  margin-top: 8px;
+  transform: translateY(-50%) translateX(0);
 }
 
 .timestamp {
