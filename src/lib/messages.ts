@@ -37,6 +37,30 @@ export interface RuntimeResponse<T = unknown> {
   error?: string
 }
 
+export type StreamPortRequest = {
+  type: 'STREAM_SUMMARIZE_VIDEO'
+  video: DetectedVideo
+  templateId?: string
+}
+
+export type StreamPortEvent =
+  | {
+    type: 'SUMMARY_STREAM_START'
+    data: unknown
+  }
+  | {
+    type: 'SUMMARY_STREAM_DELTA'
+    content: string
+  }
+  | {
+    type: 'SUMMARY_STREAM_DONE'
+    summary: string
+  }
+  | {
+    type: 'SUMMARY_STREAM_ERROR'
+    error: string
+  }
+
 export const ok = <T>(data: T): RuntimeResponse<T> => ({
   ok: true,
   data,

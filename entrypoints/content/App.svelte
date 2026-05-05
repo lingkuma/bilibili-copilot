@@ -3,17 +3,18 @@
   import { browser } from 'wxt/browser'
   import { defaultTemplates } from '../../src/lib/ai/prompts'
   import { extractBvidFromUrl, extractPageFromUrl, stripBilibiliTitleSuffix } from '../../src/lib/bilibili/video'
-  import type { RuntimeMessage, RuntimeResponse } from '../../src/lib/messages'
+  import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
-  import type { CopilotSettings, DetectedVideo, ResolvedVideo, SubtitleForAI } from '../../src/lib/types'
+  import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI } from '../../src/lib/types'
+  import MarkdownView from './MarkdownView.svelte'
 
   interface SubtitlePayload {
     video: ResolvedVideo
     subtitle: SubtitleForAI
   }
 
-  interface SummaryPayload extends SubtitlePayload {
-    summary: string
+  interface StreamStartPayload extends SubtitlePayload {
+    template: PromptTemplate
   }
 
   let expanded = $state(false)
@@ -30,6 +31,7 @@
 
   let lastUrl = ''
   let intervalId: number | undefined
+  let streamPort = $state<ReturnType<typeof browser.runtime.connect> | null>(null)
 
   onMount(() => {
     void initialize()
@@ -58,6 +60,7 @@
         window.clearInterval(intervalId)
       }
       browser.runtime.onMessage.removeListener(messageListener)
+      closeStream()
     }
   })
 
@@ -73,6 +76,7 @@
     subtitle = null
     summary = ''
     error = ''
+    closeStream()
 
     const detected = detectVideo()
     if (detected.bvid) {
@@ -133,6 +137,7 @@
   }
 
   const summarize = async () => {
+    closeStream()
     loading = true
     error = ''
     summary = ''
@@ -142,22 +147,82 @@
         throw new Error('当前页面不是可识别的 Bilibili 视频页。')
       }
 
-      const response = await browser.runtime.sendMessage({
-        type: 'SUMMARIZE_VIDEO',
+      const port = browser.runtime.connect({
+        name: 'bilibili-copilot-stream',
+      })
+      streamPort = port
+
+      port.onMessage.addListener((message: StreamPortEvent) => {
+        if (message.type === 'SUMMARY_STREAM_START') {
+          const payload = message.data as StreamStartPayload
+          video = payload.video
+          subtitle = payload.subtitle
+        }
+
+        if (message.type === 'SUMMARY_STREAM_DELTA') {
+          summary += message.content
+        }
+
+        if (message.type === 'SUMMARY_STREAM_DONE') {
+          summary = message.summary
+          loading = false
+          closeStream()
+        }
+
+        if (message.type === 'SUMMARY_STREAM_ERROR') {
+          error = message.error
+          loading = false
+          closeStream()
+        }
+      })
+
+      port.onDisconnect.addListener(() => {
+        if (streamPort === port) {
+          streamPort = null
+          loading = false
+        }
+      })
+
+      port.postMessage({
+        type: 'STREAM_SUMMARIZE_VIDEO',
         video: detected,
         templateId: selectedTemplateId,
-      }) as RuntimeResponse<SummaryPayload>
-      const payload = unwrap(response)
-      video = payload.video
-      subtitle = payload.subtitle
-      summary = payload.summary
+      })
     } catch (currentError) {
       error = currentError instanceof Error ? currentError.message : String(currentError)
-    } finally {
       loading = false
+      closeStream()
     }
   }
 
+  const closeStream = () => {
+    if (!streamPort) {
+      return
+    }
+
+    try {
+      streamPort.disconnect()
+    } catch {
+      // The port may already be closed after a navigation or stream completion.
+    } finally {
+      streamPort = null
+    }
+  }
+
+  const seekVideo = (seconds: number) => {
+    const player = document.querySelector('video') as HTMLVideoElement | null
+    if (!player) {
+      error = '没有找到当前页面的视频播放器。'
+      return
+    }
+
+    player.currentTime = seconds
+    const controller = player.closest('.bpx-player-container')
+    controller?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    })
+  }
   const persistSettings = async () => {
     saving = true
     saved = false
@@ -288,7 +353,12 @@
         {#if summary}
           <article class="summary">
             <p class="label">AI 输出</p>
-            <div>{summary}</div>
+            <MarkdownView markdown={summary} onSeek={seekVideo} />
+          </article>
+        {:else if loading}
+          <article class="summary pending">
+            <p class="label">AI 输出</p>
+            <p>正在生成 Markdown 总结...</p>
           </article>
         {/if}
       </section>

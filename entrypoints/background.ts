@@ -1,15 +1,30 @@
 import { browser } from 'wxt/browser'
 import { defaultTemplates, findTemplate } from '../src/lib/ai/prompts'
-import { summarizeSubtitle } from '../src/lib/ai/summarize'
+import { summarizeSubtitle, summarizeSubtitleStream } from '../src/lib/ai/summarize'
 import { getSubtitleForAI } from '../src/lib/bilibili/subtitle'
 import { extractBvidFromUrl, extractPageFromUrl, resolveVideo } from '../src/lib/bilibili/video'
-import { fail, ok, type RuntimeMessage } from '../src/lib/messages'
+import { fail, ok, type RuntimeMessage, type StreamPortEvent, type StreamPortRequest } from '../src/lib/messages'
 import { isAIConfigured, loadSettings } from '../src/lib/settings/storage'
 import type { DetectedVideo, ResolvedVideo } from '../src/lib/types'
 
 const tabVideos = new Map<number, DetectedVideo>()
 
 export default defineBackground(() => {
+  browser.runtime.onConnect.addListener(port => {
+    if (port.name !== 'bilibili-copilot-stream') {
+      return
+    }
+
+    const abortController = new AbortController()
+    port.onDisconnect.addListener(() => {
+      abortController.abort()
+    })
+
+    port.onMessage.addListener(message => {
+      void handleStreamRequest(port, message as StreamPortRequest, abortController.signal)
+    })
+  })
+
   browser.runtime.onMessage.addListener(async (message: RuntimeMessage, sender) => {
     try {
       if (message.type === 'VIDEO_DETECTED') {
@@ -113,6 +128,81 @@ export default defineBackground(() => {
     }
   })
 })
+
+const handleStreamRequest = async (
+  port: Browser.runtime.Port,
+  message: StreamPortRequest,
+  signal: AbortSignal,
+) => {
+  try {
+    if (message.type !== 'STREAM_SUMMARIZE_VIDEO') {
+      throw new Error('Unknown stream message type.')
+    }
+
+    const settings = await loadSettings()
+    if (!isAIConfigured(settings)) {
+      throw new Error('请先在设置里配置 AI API。')
+    }
+
+    const video = await resolveVideo(message.video)
+    const subtitle = await getSubtitleForAI(video, {
+      language: settings.language,
+      includeTimestamps: settings.includeTimestamps,
+    })
+    if (!subtitle.available) {
+      throw new Error(subtitle.reason)
+    }
+
+    const template = findTemplate(message.templateId ?? settings.defaultTemplateId)
+    safePost(port, {
+      type: 'SUMMARY_STREAM_START',
+      data: {
+        video,
+        subtitle,
+        template,
+        templates: defaultTemplates,
+      },
+    })
+
+    const summary = await summarizeSubtitleStream(
+      {
+        settings,
+        template,
+        video,
+        subtitleText: subtitle.text,
+        signal,
+      },
+      content => {
+        safePost(port, {
+          type: 'SUMMARY_STREAM_DELTA',
+          content,
+        })
+      },
+    )
+
+    safePost(port, {
+      type: 'SUMMARY_STREAM_DONE',
+      summary,
+    })
+  } catch (error) {
+    if (signal.aborted) {
+      return
+    }
+
+    safePost(port, {
+      type: 'SUMMARY_STREAM_ERROR',
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+const safePost = (port: Browser.runtime.Port, message: StreamPortEvent) => {
+  try {
+    port.postMessage(message)
+  } catch {
+    // The content page may have navigated or closed the floating window.
+  }
+}
 
 const getActiveTab = async () => {
   const [tab] = await browser.tabs.query({
