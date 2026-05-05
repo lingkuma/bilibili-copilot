@@ -112,7 +112,7 @@ export const parseInlineParts = (text: string): InlinePart[] => {
       if (startSeconds !== null) {
         parts.push({
           type: 'timestamp',
-          label,
+          label: formatTimestampLabel(start, end),
           startSeconds,
           ...(endSeconds === undefined || endSeconds === null ? {} : { endSeconds }),
         })
@@ -140,6 +140,10 @@ export const parseInlineParts = (text: string): InlinePart[] => {
   }
 
   return parts
+}
+
+const formatTimestampLabel = (start: string, end?: string) => {
+  return end ? `${start}-${end}` : start
 }
 
 export const parseTimestamp = (timestamp: string) => {
