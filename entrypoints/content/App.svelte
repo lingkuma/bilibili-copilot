@@ -346,7 +346,11 @@
     </header>
 
     {#if settingsOpen}
-      <form class="content settings" onsubmit={(event) => { event.preventDefault(); void persistSettings() }}>
+      <form
+        class="content settings"
+        autocomplete="off"
+        onsubmit={(event) => { event.preventDefault(); void persistSettings() }}
+      >
         <label>
           <span>API Base URL</span>
           <input bind:value={settings.apiBaseUrl} placeholder="https://api.openai.com/v1" />
@@ -354,7 +358,15 @@
 
         <label>
           <span>API Key</span>
-          <input bind:value={settings.apiKey} type="password" placeholder="sk-..." />
+          <input
+            bind:value={settings.apiKey}
+            type="password"
+            autocomplete="new-password"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-form-type="other"
+            placeholder="sk-..."
+          />
         </label>
 
         <label>
