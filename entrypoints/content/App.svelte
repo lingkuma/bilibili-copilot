@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { browser } from 'wxt/browser'
   import { defaultTemplates } from '../../src/lib/ai/prompts'
   import { extractBvidFromUrl, extractPageFromUrl, stripBilibiliTitleSuffix } from '../../src/lib/bilibili/video'
@@ -66,6 +66,9 @@
   let intervalId: number | undefined
   let streamPort = $state<ReturnType<typeof browser.runtime.connect> | null>(null)
   let subtitleRequestId = 0
+  let settingsSaveTimeout: number | undefined
+  let savedResetTimeout: number | undefined
+  let settingsSaveVersion = 0
 
   onMount(() => {
     void initialize()
@@ -92,6 +95,12 @@
     return () => {
       if (intervalId !== undefined) {
         window.clearInterval(intervalId)
+      }
+      if (settingsSaveTimeout !== undefined) {
+        window.clearTimeout(settingsSaveTimeout)
+      }
+      if (savedResetTimeout !== undefined) {
+        window.clearTimeout(savedResetTimeout)
       }
       browser.runtime.onMessage.removeListener(messageListener)
       closeStream()
@@ -634,22 +643,65 @@
     }, 1000)
   }
 
-  const persistSettings = async () => {
+  const scheduleSettingsSave = (delay = 400) => {
+    const version = ++settingsSaveVersion
+    saving = true
+    saved = false
+
+    if (settingsSaveTimeout !== undefined) {
+      window.clearTimeout(settingsSaveTimeout)
+    }
+
+    settingsSaveTimeout = window.setTimeout(() => {
+      settingsSaveTimeout = undefined
+      void persistSettings(version)
+    }, delay)
+  }
+
+  const persistSettings = async (version = ++settingsSaveVersion) => {
+    await tick()
+    const snapshot = $state.snapshot(settings)
+
     saving = true
     saved = false
     error = ''
     try {
-      await saveSettings($state.snapshot(settings))
-      selectedTemplateId = settings.defaultTemplateId
+      await saveSettings(snapshot)
+      if (version !== settingsSaveVersion) {
+        return
+      }
+
+      selectedTemplateId = snapshot.defaultTemplateId
       saved = true
-      window.setTimeout(() => {
-        saved = false
+
+      if (savedResetTimeout !== undefined) {
+        window.clearTimeout(savedResetTimeout)
+      }
+
+      savedResetTimeout = window.setTimeout(() => {
+        if (version === settingsSaveVersion) {
+          saved = false
+        }
+        savedResetTimeout = undefined
       }, 1600)
     } catch (currentError) {
-      error = currentError instanceof Error ? currentError.message : String(currentError)
+      if (version === settingsSaveVersion) {
+        error = currentError instanceof Error ? currentError.message : String(currentError)
+      }
     } finally {
-      saving = false
+      if (version === settingsSaveVersion) {
+        saving = false
+      }
     }
+  }
+
+  const persistSettingsNow = () => {
+    if (settingsSaveTimeout !== undefined) {
+      window.clearTimeout(settingsSaveTimeout)
+      settingsSaveTimeout = undefined
+    }
+
+    void persistSettings()
   }
 </script>
 
@@ -672,7 +724,9 @@
       <form
         class="content settings"
         autocomplete="off"
-        onsubmit={(event) => { event.preventDefault(); void persistSettings() }}
+        oninput={() => { scheduleSettingsSave() }}
+        onchange={() => { scheduleSettingsSave(0) }}
+        onsubmit={(event) => { event.preventDefault(); persistSettingsNow() }}
       >
         <label>
           <span>API Base URL</span>
@@ -777,13 +831,11 @@
           <input bind:value={settings.telegraphAuthorUrl} placeholder="https://..." />
         </label>
 
-        {#if saved}
-          <p class="saved">设置已保存。</p>
+        {#if saving}
+          <p class="saved">自动保存中...</p>
+        {:else if saved}
+          <p class="saved">设置已自动保存。</p>
         {/if}
-
-        <button class="primary" type="submit" disabled={saving}>
-          {saving ? '保存中...' : '保存设置'}
-        </button>
       </form>
     {:else}
       <section class="content">
