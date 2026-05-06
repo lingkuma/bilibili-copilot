@@ -517,6 +517,21 @@ button:disabled {
   line-height: 1.5;
 }
 
+.frame-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.frame-refresh-all {
+  height: 28px;
+  border-color: #d8d0c7;
+  background: #ffffff;
+  color: #141413;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .markdown {
   margin-top: 8px;
   color: #252523;

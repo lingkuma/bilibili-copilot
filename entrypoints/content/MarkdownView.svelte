@@ -24,6 +24,14 @@
     deletedImageKeys: Record<string, true>
   }
 
+  type CaptureTarget = {
+    key: string
+    seconds: number
+    label: string
+    source: ImageSource
+    status: ImageState['status']
+  }
+
   let {
     markdown,
     autoCaptureAiImages = false,
@@ -274,6 +282,76 @@
     void captureFrame(key, seconds, current.label.trim(), source)
   }
 
+  const getRecapturableFrames = () => {
+    const targets = new Map<string, CaptureTarget>()
+    const addTarget = (
+      key: string,
+      seconds: number,
+      label: string,
+      source: ImageSource,
+      status: ImageState['status'],
+    ) => {
+      if (!key || deletedImageKeys[key]) {
+        return
+      }
+
+      const current = imageStates[key]
+      targets.set(key, {
+        key,
+        seconds: current?.seconds ?? seconds,
+        label: current?.label ?? label,
+        source: current?.source ?? source,
+        status: current?.status ?? status,
+      })
+    }
+
+    blocks.forEach((block, index) => {
+      if (block.type === 'image') {
+        addTarget(createImageKeyForBlock(index), block.seconds, block.label, 'ai', 'idle')
+        return
+      }
+
+      if (block.type === 'heading' && block.level > 1) {
+        const key = createHeadingImageKey(block.parts)
+        const timestamp = firstTimestamp(block.parts)
+        if (key && timestamp && imageStates[key] && !hasFollowingImageBlock(index, key)) {
+          addTarget(key, timestamp.startSeconds, formatTimestamp(timestamp.startSeconds), 'manual', 'idle')
+        }
+      }
+    })
+
+    Object.entries(imageStates).forEach(([key, image]) => {
+      addTarget(key, image.seconds, image.label, image.source, image.status)
+    })
+
+    return Array.from(targets.values())
+  }
+
+  let recapturableFrames = $derived(getRecapturableFrames())
+  let isRecapturingAll = $derived(recapturableFrames.some(image => image.status === 'loading'))
+
+  const recaptureAllFrames = () => {
+    getRecapturableFrames().forEach(image => {
+      if (image.status === 'loading') {
+        return
+      }
+
+      const seconds = parseTimestamp(image.label.trim())
+      if (seconds === null) {
+        imageStates[image.key] = {
+          status: 'error',
+          source: image.source,
+          seconds: image.seconds,
+          label: image.label,
+          error: '请输入 MM:SS 或 HH:MM:SS 格式的时间戳。',
+        }
+        return
+      }
+
+      void captureFrame(image.key, seconds, image.label.trim(), image.source)
+    })
+  }
+
   const deleteFrame = (key: string) => {
     const nextImages = {
       ...imageStates,
@@ -423,6 +501,19 @@
     {/if}
   </figure>
 {/snippet}
+
+{#if recapturableFrames.length > 0}
+  <div class="frame-toolbar">
+    <button
+      class="frame-refresh-all"
+      type="button"
+      disabled={isRecapturingAll}
+      onclick={recaptureAllFrames}
+    >
+      {isRecapturingAll ? '正在重新获取图片...' : '重新获取所有图片'}
+    </button>
+  </div>
+{/if}
 
 <div class="markdown">
   {#each blocks as block, index (index)}
