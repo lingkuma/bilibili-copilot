@@ -57,7 +57,7 @@ export default defineBackground(() => {
           throw new Error(subtitle.reason)
         }
 
-        const template = findTemplate(message.templateId ?? settings.defaultTemplateId)
+        const template = findTemplate(message.templateId ?? settings.selectedTemplateId)
         const summary = await summarizeSubtitle({
           settings,
           template,
@@ -96,7 +96,7 @@ export default defineBackground(() => {
           throw new Error(subtitle.reason)
         }
 
-        const template = findTemplate(message.templateId ?? settings.defaultTemplateId)
+        const template = findTemplate(message.templateId ?? settings.selectedTemplateId)
         const summary = await summarizeSubtitle({
           settings,
           template,
@@ -175,7 +175,7 @@ const handleStreamRequest = async (
       throw new Error(subtitle.reason)
     }
 
-    const template = findTemplate(message.templateId ?? settings.defaultTemplateId)
+    const template = findTemplate(message.templateId ?? settings.selectedTemplateId)
     safePost(port, {
       type: 'SUMMARY_STREAM_START',
       data: {

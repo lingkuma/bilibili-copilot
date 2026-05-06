@@ -49,7 +49,7 @@ export interface CopilotSettings {
   apiKey: string
   model: string
   language: string
-  defaultTemplateId: string
+  selectedTemplateId: string
   includeTimestamps: boolean
   autoSummaryEnabled: boolean
   autoCaptureAiImages: boolean

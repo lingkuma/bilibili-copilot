@@ -3,6 +3,10 @@ import type { CopilotSettings } from '../types'
 
 const SETTINGS_KEY = 'bilibili-copilot-settings'
 
+type StoredCopilotSettings = Partial<CopilotSettings> & {
+  defaultTemplateId?: string
+}
+
 const decodeBase64Setting = (value: string) => {
   const binary = atob(value)
   const bytes = new Uint8Array(binary.length)
@@ -17,7 +21,7 @@ export const defaultSettings: CopilotSettings = {
   apiKey: '',
   model: 'gpt-5.5',
   language: 'zh-CN',
-  defaultTemplateId: 'brief-outline',
+  selectedTemplateId: 'brief-outline',
   includeTimestamps: true,
   autoSummaryEnabled: false,
   autoCaptureAiImages: false,
@@ -32,10 +36,12 @@ export const defaultSettings: CopilotSettings = {
 
 export const loadSettings = async () => {
   const result = await browser.storage.local.get(SETTINGS_KEY)
-  const stored = result[SETTINGS_KEY] as Partial<CopilotSettings> | undefined
-  const settings = {
+  const stored = result[SETTINGS_KEY] as StoredCopilotSettings | undefined
+  const { defaultTemplateId: legacyTemplateId, ...storedSettings } = stored ?? {}
+  const settings: CopilotSettings = {
     ...defaultSettings,
-    ...stored,
+    ...storedSettings,
+    selectedTemplateId: stored?.selectedTemplateId ?? legacyTemplateId ?? defaultSettings.selectedTemplateId,
   }
   if (!stored || hasMissingDefaults(stored)) {
     await saveSettings(settings)

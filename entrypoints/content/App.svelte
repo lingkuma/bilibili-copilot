@@ -109,7 +109,7 @@
 
   const initialize = async () => {
     settings = await loadSettings()
-    selectedTemplateId = settings.defaultTemplateId
+    selectedTemplateId = settings.selectedTemplateId
     handleUrlChange()
   }
 
@@ -671,7 +671,7 @@
         return
       }
 
-      selectedTemplateId = snapshot.defaultTemplateId
+      selectedTemplateId = snapshot.selectedTemplateId
       saved = true
 
       if (savedResetTimeout !== undefined) {
@@ -702,6 +702,11 @@
     }
 
     void persistSettings()
+  }
+
+  const persistSelectedTemplate = () => {
+    settings.selectedTemplateId = selectedTemplateId
+    scheduleSettingsSave(0)
   }
 </script>
 
@@ -754,15 +759,6 @@
         <label>
           <span>默认字幕语言</span>
           <input bind:value={settings.language} placeholder="zh-CN" />
-        </label>
-
-        <label>
-          <span>默认模板</span>
-          <select bind:value={settings.defaultTemplateId}>
-            {#each defaultTemplates as template (template.id)}
-              <option value={template.id}>{template.name}</option>
-            {/each}
-          </select>
         </label>
 
         <label class="check">
@@ -865,7 +861,7 @@
         {/if}
 
         <div class="toolbar">
-          <select bind:value={selectedTemplateId} aria-label="选择模板">
+          <select bind:value={selectedTemplateId} aria-label="选择模板" onchange={persistSelectedTemplate}>
             {#each defaultTemplates as template (template.id)}
               <option value={template.id}>{template.name}</option>
             {/each}
