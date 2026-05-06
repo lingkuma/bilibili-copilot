@@ -4,7 +4,8 @@
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -173,15 +174,28 @@ label span {
 }
 
 input,
-select {
+select,
+textarea {
   min-width: 0;
-  height: 38px;
   box-sizing: border-box;
   border: 1px solid #e6dfd8;
   border-radius: 8px;
   background: #faf9f5;
   color: #141413;
   padding: 0 10px;
+}
+
+input,
+select {
+  height: 38px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 74px;
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.5;
 }
 
 .check {
@@ -281,6 +295,106 @@ button:disabled {
 
 .summary {
   margin-top: 14px;
+}
+
+.conversation {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.conversation .summary {
+  margin-top: 0;
+}
+
+.chat-message,
+.chat-composer,
+.history-item {
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #f5f0e8;
+}
+
+.chat-message {
+  padding: 12px;
+}
+
+.chat-message > p:last-child {
+  margin: 8px 0 0;
+  color: #252523;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.user-message {
+  background: #eef5ff;
+  border-color: #cfe0ff;
+}
+
+.assistant-message .markdown {
+  margin-top: 8px;
+}
+
+.chat-composer {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.chat-composer .primary {
+  margin-top: 0;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px;
+}
+
+.history-open {
+  display: grid;
+  gap: 4px;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.history-open strong,
+.history-open span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-open strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-open span {
+  color: #6c6a64;
+  font-size: 12px;
+}
+
+.history-delete {
+  align-self: center;
+  height: 30px;
+  border-color: #e6dfd8;
+  background: #faf9f5;
+  color: #8f2323;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .summary > p {

@@ -1,8 +1,9 @@
 import { browser } from 'wxt/browser'
 import { defaultTemplates, findTemplate } from '../src/lib/ai/prompts'
-import { summarizeSubtitle, summarizeSubtitleStream } from '../src/lib/ai/summarize'
+import { answerSubtitleQuestion, summarizeSubtitle, summarizeSubtitleStream } from '../src/lib/ai/summarize'
 import { getSubtitleForAI } from '../src/lib/bilibili/subtitle'
 import { extractBvidFromUrl, extractPageFromUrl, resolveVideo } from '../src/lib/bilibili/video'
+import { deleteHistoryThread, getHistoryThread, listHistoryThreads, saveHistoryThread } from '../src/lib/history/storage'
 import { fail, ok, type RuntimeMessage, type StreamPortEvent, type StreamPortRequest } from '../src/lib/messages'
 import { buildTelegraphContent, collectShareImageEntries } from '../src/lib/share/telegraph'
 import { isAIConfigured, loadSettings, saveSettings } from '../src/lib/settings/storage'
@@ -146,6 +147,74 @@ export default defineBackground(() => {
         return ok({
           url: page.url,
         })
+      }
+
+      if (message.type === 'SHARE_HISTORY_THREAD_TO_TELEGRAPH') {
+        const settings = await loadSettings()
+        const page = await createHistoryTelegraphPage(settings, message.thread)
+
+        await browser.tabs.create({
+          url: page.url,
+        })
+
+        return ok({
+          url: page.url,
+        })
+      }
+
+      if (message.type === 'SHARE_HISTORY_THREAD_TO_TELEGRAM') {
+        const settings = await loadSettings()
+        const page = await createHistoryTelegraphPage(settings, message.thread)
+        const telegramUrl = createTelegramShareUrl(page.url, message.thread.video.title)
+
+        await browser.tabs.create({
+          url: telegramUrl,
+        })
+
+        return ok({
+          url: telegramUrl,
+          pageUrl: page.url,
+        })
+      }
+
+      if (message.type === 'ANSWER_SUBTITLE_QUESTION') {
+        const settings = await loadSettings()
+        if (!isAIConfigured(settings)) {
+          throw new Error('请先在设置里配置 AI API。')
+        }
+
+        const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings)
+        if (!subtitle.available) {
+          throw new Error(subtitle.reason)
+        }
+
+        return ok({
+          answer: await answerSubtitleQuestion({
+            settings,
+            video,
+            subtitleText: subtitle.text,
+            entries: message.entries,
+            question: message.question,
+          }),
+        })
+      }
+
+      if (message.type === 'SAVE_HISTORY_THREAD') {
+        await saveHistoryThread(message.thread)
+        return ok(null)
+      }
+
+      if (message.type === 'GET_HISTORY_THREADS') {
+        return ok(await listHistoryThreads())
+      }
+
+      if (message.type === 'GET_HISTORY_THREAD') {
+        return ok(await getHistoryThread(message.id))
+      }
+
+      if (message.type === 'DELETE_HISTORY_THREAD') {
+        await deleteHistoryThread(message.id)
+        return ok(null)
       }
 
       return fail('Unknown message type.')
@@ -427,6 +496,103 @@ const uploadCloudinaryImage = async (
 const createCloudinaryPublicId = (video: ResolvedVideo, key: string) => {
   const shareId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   return `bilibili-copilot/${video.bvid}/${shareId}/${key.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+}
+
+const createHistoryTelegraphPage = async (
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+  thread: import('../src/lib/history/types').HistoryThread,
+) => {
+  const imageUrlsByEntry = new Map<string, Record<string, string>>()
+  const imageLabelsByEntry = new Map<string, Record<string, string>>()
+
+  for (const entry of thread.entries) {
+    const snapshot = entry.images ?? {
+      images: {},
+      deletedImageKeys: {},
+    }
+    const imageEntries = collectShareImageEntries(entry.content, snapshot)
+    const imageUrls = new Map<string, string>()
+
+    await Promise.all(imageEntries.map(async imageEntry => {
+      const url = await uploadCloudinaryImage(
+        settings,
+        imageEntry.dataUrl,
+        createCloudinaryPublicId(thread.video, `${entry.id}-${imageEntry.key}`),
+      )
+      imageUrls.set(imageEntry.key, url)
+    }))
+
+    imageUrlsByEntry.set(entry.id, Object.fromEntries(imageUrls))
+    imageLabelsByEntry.set(entry.id, Object.fromEntries(imageEntries.map(item => [item.key, item.label])))
+  }
+
+  const content = buildHistoryTelegraphContent(
+    thread,
+    imageUrlsByEntry,
+    imageLabelsByEntry,
+  )
+  const accessToken = await ensureTelegraphAccessToken(settings)
+  return createTelegraphPage({
+    accessToken,
+    title: thread.video.title,
+    slugTitle: createTelegraphSlugTitle(thread.video),
+    authorName: settings.telegraphAuthorName.trim() || 'Bilibili Copilot',
+    authorUrl: settings.telegraphAuthorUrl.trim(),
+    content,
+  })
+}
+
+const createTelegramShareUrl = (url: string, title: string) => {
+  const target = new URL('https://t.me/share/url')
+  target.searchParams.set('url', url)
+  target.searchParams.set('text', title)
+  return target.toString()
+}
+
+const buildHistoryTelegraphContent = (
+  thread: import('../src/lib/history/types').HistoryThread,
+  imageUrlsByEntry: Map<string, Record<string, string>>,
+  imageLabelsByEntry: Map<string, Record<string, string>>,
+) => {
+  const content: ReturnType<typeof buildTelegraphContent> = [
+    {
+      tag: 'p',
+      children: [
+        'Source: ',
+        {
+          tag: 'a',
+          attrs: {
+            href: thread.video.url,
+          },
+          children: [thread.video.title],
+        },
+      ],
+    },
+  ]
+
+  thread.entries.forEach(entry => {
+    content.push({
+      tag: 'h3',
+      children: [getHistoryEntryTitle(entry)],
+    })
+    content.push(...buildTelegraphContent({
+      markdown: entry.content,
+      video: thread.video,
+      imageUrls: imageUrlsByEntry.get(entry.id) ?? {},
+      imageLabels: imageLabelsByEntry.get(entry.id) ?? {},
+      includeSource: false,
+    }))
+  })
+
+  return content
+}
+
+const getHistoryEntryTitle = (entry: import('../src/lib/history/types').HistoryEntry) => {
+  if (entry.kind === 'summary') {
+    return 'AI 总结'
+  }
+
+  return entry.role === 'user' ? '我的问题' : 'AI 回答'
 }
 
 const createTelegraphSlugTitle = (video: ResolvedVideo) => {

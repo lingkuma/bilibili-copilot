@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import {
     createManualBlockImageKey,
     createManualListItemImageKey,
@@ -30,6 +31,7 @@
     onCaptureFrame,
     onGetCurrentSeconds,
     onImagesChange,
+    initialImages,
   }: {
     markdown: string
     autoCaptureAiImages?: boolean
@@ -37,11 +39,13 @@
     onCaptureFrame: (seconds: number) => Promise<string>
     onGetCurrentSeconds: () => number
     onImagesChange?: (snapshot: ImageSnapshot) => void
+    initialImages?: ImageSnapshot
   } = $props()
 
   let blocks = $derived(parseConstrainedMarkdown(markdown))
-  let imageStates = $state<Record<string, ImageState>>({})
-  let deletedImageKeys = $state<Record<string, true>>({})
+  const initialImageSnapshot = untrack(() => initialImages)
+  let imageStates = $state<Record<string, ImageState>>(initialImageSnapshot?.images ?? {})
+  let deletedImageKeys = $state<Record<string, true>>(initialImageSnapshot?.deletedImageKeys ?? {})
 
   $effect(() => {
     onImagesChange?.({

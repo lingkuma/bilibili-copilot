@@ -1,4 +1,5 @@
 import type { ShareImageSnapshot } from './share/telegraph'
+import type { HistoryEntry, HistoryThread } from './history/types'
 import type { DetectedVideo, ResolvedVideo } from './types'
 
 export type RuntimeMessage =
@@ -37,6 +38,35 @@ export type RuntimeMessage =
     video: ResolvedVideo
     summary: string
     images: ShareImageSnapshot
+  }
+  | {
+    type: 'SHARE_HISTORY_THREAD_TO_TELEGRAPH'
+    thread: HistoryThread
+  }
+  | {
+    type: 'SHARE_HISTORY_THREAD_TO_TELEGRAM'
+    thread: HistoryThread
+  }
+  | {
+    type: 'ANSWER_SUBTITLE_QUESTION'
+    video: ResolvedVideo
+    question: string
+    entries: HistoryEntry[]
+  }
+  | {
+    type: 'SAVE_HISTORY_THREAD'
+    thread: HistoryThread
+  }
+  | {
+    type: 'GET_HISTORY_THREADS'
+  }
+  | {
+    type: 'GET_HISTORY_THREAD'
+    id: string
+  }
+  | {
+    type: 'DELETE_HISTORY_THREAD'
+    id: string
   }
 
 export interface RuntimeResponse<T = unknown> {

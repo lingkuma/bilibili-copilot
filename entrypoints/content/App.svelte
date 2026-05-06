@@ -11,6 +11,8 @@
     type InlinePart,
     type MarkdownBlock,
   } from '../../src/lib/markdown/parse'
+  import type { HistoryEntry, HistoryThread, HistoryThreadSummary } from '../../src/lib/history/types'
+  import { createHistoryThreadId } from '../../src/lib/history/storage'
   import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
   import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI } from '../../src/lib/types'
@@ -55,12 +57,14 @@
   let sharedUrl = $state('')
   let error = $state('')
   let settings = $state<CopilotSettings>({ ...defaultSettings })
+  let viewMode = $state<'main' | 'history'>('main')
+  let currentThread = $state<HistoryThread | null>(null)
+  let historyThreads = $state<HistoryThreadSummary[]>([])
+  let historyLoading = $state(false)
+  let chatInput = $state('')
+  let chatLoading = $state(false)
   let exportKeepTimestamps = $state(true)
   let exportKeepImageTags = $state(false)
-  let exportImages = $state<ExportImageSnapshot>({
-    images: {},
-    deletedImageKeys: {},
-  })
 
   let lastUrl = ''
   let intervalId: number | undefined
@@ -118,10 +122,10 @@
     video = null
     subtitle = null
     summary = ''
-    exportImages = {
-      images: {},
-      deletedImageKeys: {},
-    }
+    currentThread = null
+    chatInput = ''
+    chatLoading = false
+    viewMode = 'main'
     error = ''
     closeStream()
     summaryLoading = false
@@ -193,6 +197,7 @@
       }
       video = payload.video
       subtitle = payload.subtitle
+      void loadThreadForVideo(payload.video)
     } catch (currentError) {
       if (requestId === subtitleRequestId && requestUrl === location.href) {
         error = currentError instanceof Error ? currentError.message : String(currentError)
@@ -209,10 +214,6 @@
     summaryLoading = true
     error = ''
     summary = ''
-    exportImages = {
-      images: {},
-      deletedImageKeys: {},
-    }
     try {
       const detected = detectVideo()
       if (!detected.bvid) {
@@ -238,6 +239,17 @@
         if (message.type === 'SUMMARY_STREAM_DONE') {
           summary = message.summary
           summaryLoading = false
+          appendHistoryEntry({
+            id: createEntryId('summary'),
+            kind: 'summary',
+            createdAt: Date.now(),
+            content: message.summary,
+            templateId: selectedTemplateId,
+            images: {
+              images: {},
+              deletedImageKeys: {},
+            },
+          })
           closeStream()
         }
 
@@ -393,7 +405,7 @@
   }
 
   const exportSummaryZip = () => {
-    if (!summary) {
+    if (!currentThread || currentThread.entries.length === 0) {
       return
     }
 
@@ -411,7 +423,7 @@
   }
 
   const shareSummaryToTelegraph = async () => {
-    if (!summary || !video) {
+    if (!currentThread || currentThread.entries.length === 0) {
       return
     }
 
@@ -420,10 +432,8 @@
     error = ''
     try {
       const response = await browser.runtime.sendMessage({
-        type: 'SHARE_SUMMARY_TO_TELEGRAPH',
-        video,
-        summary,
-        images: $state.snapshot(exportImages),
+        type: 'SHARE_HISTORY_THREAD_TO_TELEGRAPH',
+        thread: $state.snapshot(currentThread),
       }) as RuntimeResponse<{ url: string }>
       const payload = unwrap(response)
       sharedUrl = payload.url
@@ -434,20 +444,265 @@
     }
   }
 
-  const handleExportImagesChange = (snapshot: ExportImageSnapshot) => {
-    exportImages = snapshot
+  const shareSummaryToTelegram = async () => {
+    if (!currentThread || currentThread.entries.length === 0) {
+      return
+    }
+
+    sharing = true
+    sharedUrl = ''
+    error = ''
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'SHARE_HISTORY_THREAD_TO_TELEGRAM',
+        thread: $state.snapshot(currentThread),
+      }) as RuntimeResponse<{ url: string; pageUrl: string }>
+      const payload = unwrap(response)
+      sharedUrl = payload.pageUrl
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    } finally {
+      sharing = false
+    }
+  }
+
+  const handleEntryImagesChange = (entryId: string, snapshot: ExportImageSnapshot) => {
+    if (!currentThread) {
+      return
+    }
+
+    const currentEntry = currentThread.entries.find(entry => entry.id === entryId)
+    if (currentEntry?.images && imageSnapshotsEqual(currentEntry.images, snapshot)) {
+      return
+    }
+
+    const entries = currentThread.entries.map(entry => {
+      if (entry.id !== entryId) {
+        return entry
+      }
+
+      return {
+        ...entry,
+        images: snapshot,
+      }
+    })
+
+    currentThread = {
+      ...currentThread,
+      entries,
+      updatedAt: Date.now(),
+    }
+    void persistHistoryThread()
+  }
+
+  const imageSnapshotsEqual = (left: ExportImageSnapshot, right: ExportImageSnapshot) => {
+    return JSON.stringify(left) === JSON.stringify(right)
+  }
+
+  const loadThreadForVideo = async (targetVideo: ResolvedVideo) => {
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'GET_HISTORY_THREAD',
+        id: createHistoryThreadId(targetVideo),
+      }) as RuntimeResponse<HistoryThread | null>
+      const thread = unwrap(response)
+      if (!thread) {
+        return
+      }
+
+      currentThread = thread
+      const latestSummary = [...thread.entries].reverse().find(entry => entry.kind === 'summary')
+      if (latestSummary) {
+        summary = latestSummary.content
+      }
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    }
+  }
+
+  const loadHistoryThreads = async () => {
+    historyLoading = true
+    error = ''
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'GET_HISTORY_THREADS',
+      }) as RuntimeResponse<HistoryThreadSummary[]>
+      historyThreads = unwrap(response)
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    } finally {
+      historyLoading = false
+    }
+  }
+
+  const openHistory = () => {
+    viewMode = 'history'
+    settingsOpen = false
+    void loadHistoryThreads()
+  }
+
+  const openCurrentView = () => {
+    viewMode = 'main'
+    settingsOpen = false
+  }
+
+  const selectHistoryThread = async (id: string) => {
+    error = ''
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'GET_HISTORY_THREAD',
+        id,
+      }) as RuntimeResponse<HistoryThread | null>
+      const thread = unwrap(response)
+      if (!thread) {
+        throw new Error('没有找到这条历史记录。')
+      }
+
+      currentThread = thread
+      video = thread.video
+      subtitle = thread.subtitle ?? subtitle
+      const latestSummary = [...thread.entries].reverse().find(entry => entry.kind === 'summary')
+      summary = latestSummary?.content ?? ''
+      viewMode = 'main'
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    }
+  }
+
+  const deleteHistory = async (id: string) => {
+    error = ''
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'DELETE_HISTORY_THREAD',
+        id,
+      }) as RuntimeResponse<null>
+      unwrap(response)
+      historyThreads = historyThreads.filter(thread => thread.id !== id)
+      if (currentThread?.id === id) {
+        currentThread = null
+        summary = ''
+      }
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    }
+  }
+
+  const askQuestion = async () => {
+    const question = chatInput.trim()
+    if (!question || !video || chatLoading) {
+      return
+    }
+
+    const previousEntries = currentThread?.entries ?? []
+    const userEntry: HistoryEntry = {
+      id: createEntryId('user'),
+      kind: 'chat',
+      role: 'user',
+      createdAt: Date.now(),
+      content: question,
+    }
+
+    appendHistoryEntry(userEntry)
+    chatInput = ''
+    chatLoading = true
+    error = ''
+
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'ANSWER_SUBTITLE_QUESTION',
+        video,
+        question,
+        entries: previousEntries,
+      }) as RuntimeResponse<{ answer: string }>
+      const payload = unwrap(response)
+      appendHistoryEntry({
+        id: createEntryId('assistant'),
+        kind: 'chat',
+        role: 'assistant',
+        createdAt: Date.now(),
+        content: payload.answer,
+        images: {
+          images: {},
+          deletedImageKeys: {},
+        },
+      })
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    } finally {
+      chatLoading = false
+    }
+  }
+
+  const appendHistoryEntry = (entry: HistoryEntry) => {
+    if (!video) {
+      return
+    }
+
+    const now = Date.now()
+    const thread: HistoryThread = currentThread?.id === createHistoryThreadId(video)
+      ? currentThread
+      : {
+          id: createHistoryThreadId(video),
+          video,
+          subtitle: subtitle ?? undefined,
+          entries: [],
+          createdAt: now,
+          updatedAt: now,
+        }
+
+    currentThread = {
+      ...thread,
+      video,
+      subtitle: subtitle ?? thread.subtitle,
+      entries: [...thread.entries, entry],
+      updatedAt: now,
+    }
+    void persistHistoryThread()
+  }
+
+  const persistHistoryThread = async () => {
+    if (!currentThread || currentThread.entries.length === 0) {
+      return
+    }
+
+    try {
+      const response = await browser.runtime.sendMessage({
+        type: 'SAVE_HISTORY_THREAD',
+        thread: $state.snapshot(currentThread),
+      }) as RuntimeResponse<null>
+      unwrap(response)
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    }
+  }
+
+  const createEntryId = (prefix: string) => {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   }
 
   const buildExportFiles = (): ZipFile[] => {
     const assets: ZipFile[] = []
     const assetPaths = new Map<string, string>()
-    const blocks = parseConstrainedMarkdown(summary)
     const sections: string[] = []
 
-    blocks.forEach((block, index) => {
-      const lines = renderExportBlock(block, blocks, index, assets, assetPaths)
-      if (lines.length > 0) {
-        sections.push(lines.join('\n'))
+    currentThread?.entries.forEach(entry => {
+      sections.push(`## ${getExportEntryTitle(entry)}`)
+      const blocks = parseConstrainedMarkdown(entry.content)
+      const entrySections: string[] = []
+      const imageSnapshot = entry.images ?? {
+        images: {},
+        deletedImageKeys: {},
+      }
+
+      blocks.forEach((block, index) => {
+        const lines = renderExportBlock(block, blocks, index, assets, assetPaths, imageSnapshot)
+        if (lines.length > 0) {
+          entrySections.push(lines.join('\n'))
+        }
+      })
+
+      if (entrySections.length > 0) {
+        sections.push(entrySections.join('\n\n'))
       }
     })
 
@@ -467,6 +722,7 @@
     index: number,
     assets: ZipFile[],
     assetPaths: Map<string, string>,
+    imageSnapshot: ExportImageSnapshot,
   ) => {
     if (block.type === 'heading') {
       const heading = `${'#'.repeat(block.level)} ${renderInlineParts(block.parts)}`
@@ -475,11 +731,11 @@
       if (block.level > 1) {
         const imageKey = createHeadingImageKey(block.parts)
         if (imageKey && !hasFollowingExportImageBlock(blocks, index, imageKey)) {
-          lines.push(...renderImageReference(imageKey, '', assets, assetPaths))
+          lines.push(...renderImageReference(imageKey, '', assets, assetPaths, imageSnapshot))
         }
       }
 
-      lines.push(...renderImageReference(createManualBlockImageKey(index), '', assets, assetPaths))
+      lines.push(...renderImageReference(createManualBlockImageKey(index), '', assets, assetPaths, imageSnapshot))
 
       return lines
     }
@@ -491,19 +747,19 @@
         if (text) {
           lines.push(`- ${text}`)
         }
-        lines.push(...renderImageReference(createManualListItemImageKey(index, itemIndex), '', assets, assetPaths))
+        lines.push(...renderImageReference(createManualListItemImageKey(index, itemIndex), '', assets, assetPaths, imageSnapshot))
       })
       return lines
     }
 
     if (block.type === 'image') {
       const imageKey = createImageKeyForExportBlock(blocks, index)
-      return renderImageReference(imageKey, block.label, assets, assetPaths)
+      return renderImageReference(imageKey, block.label, assets, assetPaths, imageSnapshot)
     }
 
     const paragraph = renderInlineParts(block.parts)
     const lines = paragraph ? [paragraph] : []
-    lines.push(...renderImageReference(createManualBlockImageKey(index), '', assets, assetPaths))
+    lines.push(...renderImageReference(createManualBlockImageKey(index), '', assets, assetPaths, imageSnapshot))
     return lines
   }
 
@@ -530,12 +786,13 @@
     fallbackLabel: string,
     assets: ZipFile[],
     assetPaths: Map<string, string>,
+    imageSnapshot: ExportImageSnapshot,
   ) => {
-    if (exportImages.deletedImageKeys[key]) {
+    if (imageSnapshot.deletedImageKeys[key]) {
       return []
     }
 
-    const image = exportImages.images[key]
+    const image = imageSnapshot.images[key]
     const imageLabel = image?.label || fallbackLabel
     const lines: string[] = []
 
@@ -596,6 +853,18 @@
   const hasFollowingExportImageBlock = (blocks: MarkdownBlock[], index: number, key: string) => {
     const nextBlock = blocks[index + 1]
     return nextBlock?.type === 'image' && createImageKeyForExportBlock(blocks, index + 1) === key
+  }
+
+  const getExportEntryTitle = (entry: HistoryEntry) => {
+    if (entry.kind === 'summary') {
+      return 'AI 总结'
+    }
+
+    return entry.role === 'user' ? '我的问题' : 'AI 回答'
+  }
+
+  const formatDateTime = (value: number) => {
+    return new Date(value).toLocaleString()
   }
 
   const normalizeMarkdownText = (text: string) => {
@@ -715,12 +984,19 @@
     <header class="header">
       <div>
         <p class="eyebrow">Bilibili Copilot</p>
-        <h1>{settingsOpen ? '设置' : '字幕总结'}</h1>
+        <h1>{settingsOpen ? '设置' : viewMode === 'history' ? '历史记录' : '字幕总结'}</h1>
       </div>
       <div class="header-actions">
-        <button class="ghost" type="button" onclick={() => { settingsOpen = !settingsOpen }}>
-          {settingsOpen ? '返回' : '设置'}
-        </button>
+        {#if settingsOpen}
+          <button class="ghost" type="button" onclick={openCurrentView}>返回</button>
+        {:else if viewMode === 'history'}
+          <button class="ghost" type="button" onclick={openCurrentView}>返回</button>
+        {:else}
+          <button class="ghost" type="button" onclick={openHistory}>历史</button>
+          <button class="ghost" type="button" onclick={() => { settingsOpen = true }}>
+            设置
+          </button>
+        {/if}
         <button class="close" type="button" aria-label="收起" onclick={() => { expanded = false }}>×</button>
       </div>
     </header>
@@ -833,6 +1109,33 @@
           <p class="saved">设置已自动保存。</p>
         {/if}
       </form>
+    {:else if viewMode === 'history'}
+      <section class="content history-view">
+        {#if historyLoading}
+          <div class="empty">
+            <h2>历史记录</h2>
+            <p>正在读取历史记录...</p>
+          </div>
+        {:else if historyThreads.length === 0}
+          <div class="empty">
+            <h2>历史记录</h2>
+            <p>还没有保存的总结和聊天。</p>
+          </div>
+        {:else}
+          <div class="history-list">
+            {#each historyThreads as thread (thread.id)}
+              <article class="history-item">
+                <button class="history-open" type="button" onclick={() => { void selectHistoryThread(thread.id) }}>
+                  <strong>{thread.video.title}</strong>
+                  <span>BV: {thread.video.bvid} · P{thread.video.page} · {thread.entryCount} 条记录</span>
+                  <span>{formatDateTime(thread.updatedAt)}</span>
+                </button>
+                <button class="history-delete" type="button" onclick={() => { void deleteHistory(thread.id) }}>删除</button>
+              </article>
+            {/each}
+          </div>
+        {/if}
+      </section>
     {:else}
       <section class="content">
         {#if video}
@@ -873,7 +1176,7 @@
           {loading ? '处理中...' : '开始总结'}
         </button>
 
-        {#if summary}
+        {#if currentThread?.entries.length}
           <div class="export-panel">
             <label class="check">
               <input bind:checked={exportKeepTimestamps} type="checkbox" />
@@ -883,14 +1186,17 @@
               <input bind:checked={exportKeepImageTags} type="checkbox" />
               <span>导出时保留 image 标签</span>
             </label>
-            <button class="secondary export-button" type="button" onclick={exportSummaryZip} disabled={exporting || loading}>
+            <button class="secondary export-button" type="button" onclick={exportSummaryZip} disabled={exporting || loading || chatLoading}>
               {exporting ? '导出中...' : '导出 ZIP'}
             </button>
-            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegraph} disabled={sharing || loading || !video}>
-              {sharing ? 'Sharing...' : 'Share to Telegraph'}
+            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegraph} disabled={sharing || loading || chatLoading || !video}>
+              {sharing ? '分享中...' : '分享到 Telegraph'}
+            </button>
+            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegram} disabled={sharing || loading || chatLoading || !video}>
+              {sharing ? '分享中...' : '分享到 Telegram'}
             </button>
             {#if sharedUrl}
-              <a class="share-link" href={sharedUrl} target="_blank" rel="noreferrer">Open Telegraph page</a>
+              <a class="share-link" href={sharedUrl} target="_blank" rel="noreferrer">打开 Telegraph 页面</a>
             {/if}
           </div>
         {/if}
@@ -899,18 +1205,55 @@
           <div class="error">{error}</div>
         {/if}
 
-        {#if summary}
-          <article class="summary">
-            <p class="label">AI 输出</p>
-            <MarkdownView
-              markdown={summary}
-              autoCaptureAiImages={settings.autoCaptureAiImages}
-              onSeek={seekVideo}
-              onCaptureFrame={captureVideoFrame}
-              onGetCurrentSeconds={getCurrentVideoSeconds}
-              onImagesChange={handleExportImagesChange}
-            />
-          </article>
+        {#if currentThread?.entries.length}
+          <div class="conversation">
+            {#each currentThread.entries as entry (entry.id)}
+              {#if entry.kind === 'summary'}
+                <article class="summary">
+                  <p class="label">AI 总结</p>
+                  <MarkdownView
+                    markdown={entry.content}
+                    autoCaptureAiImages={settings.autoCaptureAiImages}
+                    onSeek={seekVideo}
+                    onCaptureFrame={captureVideoFrame}
+                    onGetCurrentSeconds={getCurrentVideoSeconds}
+                    onImagesChange={(snapshot) => { handleEntryImagesChange(entry.id, snapshot) }}
+                    initialImages={entry.images}
+                  />
+                </article>
+              {:else if entry.role === 'user'}
+                <article class="chat-message user-message">
+                  <p class="label">我</p>
+                  <p>{entry.content}</p>
+                </article>
+              {:else}
+                <article class="chat-message assistant-message">
+                  <p class="label">AI 回答</p>
+                  <MarkdownView
+                    markdown={entry.content}
+                    autoCaptureAiImages={settings.autoCaptureAiImages}
+                    onSeek={seekVideo}
+                    onCaptureFrame={captureVideoFrame}
+                    onGetCurrentSeconds={getCurrentVideoSeconds}
+                    onImagesChange={(snapshot) => { handleEntryImagesChange(entry.id, snapshot) }}
+                    initialImages={entry.images}
+                  />
+                </article>
+              {/if}
+            {/each}
+
+            <form class="chat-composer" onsubmit={(event) => { event.preventDefault(); void askQuestion() }}>
+              <textarea
+                bind:value={chatInput}
+                placeholder="继续追问这个视频..."
+                rows="3"
+                disabled={chatLoading || loading}
+              ></textarea>
+              <button class="primary" type="submit" disabled={chatLoading || loading || !chatInput.trim()}>
+                {chatLoading ? '回答中...' : '发送'}
+              </button>
+            </form>
+          </div>
         {:else if loading}
           <article class="summary pending">
             <p class="label">AI 输出</p>

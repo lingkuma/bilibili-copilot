@@ -79,10 +79,13 @@ export const buildTelegraphContent = (input: {
   video: ResolvedVideo
   imageUrls: Record<string, string>
   imageLabels?: Record<string, string>
+  includeSource?: boolean
 }) => {
   const blocks = parseConstrainedMarkdown(input.markdown)
-  const nodes: TelegraphNode[] = [
-    {
+  const nodes: TelegraphNode[] = []
+
+  if (input.includeSource !== false) {
+    nodes.push({
       tag: 'p',
       children: [
         'Source: ',
@@ -94,8 +97,8 @@ export const buildTelegraphContent = (input: {
           children: [input.video.title],
         },
       ],
-    },
-  ]
+    })
+  }
 
   blocks.forEach((block, index) => {
     if (block.type === 'heading') {

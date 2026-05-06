@@ -1,4 +1,5 @@
 import type { CopilotSettings, PromptTemplate, ResolvedVideo } from '../types'
+import type { HistoryEntry } from '../history/types'
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -53,6 +54,43 @@ const buildMessages = (input: {
 字幕如下：
 
 ${subtitleText}`,
+    },
+  ]
+}
+
+const buildQuestionMessages = (input: {
+  video: ResolvedVideo
+  subtitleText: string
+  entries: HistoryEntry[]
+  question: string
+}) => {
+  const { video, subtitleText, entries, question } = input
+  return [
+    {
+      role: 'system',
+      content: [
+        '你是一个严谨的视频字幕问答助手。必须基于用户提供的字幕、已有总结和对话回答。',
+        '如果问题无法从字幕或已有对话确认，请明确说明无法从字幕判断。',
+        '请使用 Markdown 输出，可以引用真实时间戳帮助用户定位。',
+        '当回答需要画面辅助时，可以单独输出一行图片标签，例如：[<image>@02:18]。',
+        '图片标签和时间戳必须对应字幕中真实出现或上下文可定位的片段，不要编造时间点。',
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: `视频标题：${video.title}
+视频地址：${video.url}
+
+字幕如下：
+
+${subtitleText}
+
+已有总结和对话：
+
+${renderHistoryEntriesForPrompt(entries)}
+
+用户新问题：
+${question}`,
     },
   ]
 }
@@ -161,6 +199,63 @@ export const summarizeSubtitleStream = async (
   }
 
   return fullContent.trim()
+}
+
+export const answerSubtitleQuestion = async (input: {
+  settings: CopilotSettings
+  video: ResolvedVideo
+  subtitleText: string
+  entries: HistoryEntry[]
+  question: string
+}) => {
+  const { settings, video, subtitleText, entries, question } = input
+  const endpoint = `${trimTrailingSlash(settings.apiBaseUrl)}/chat/completions`
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${settings.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: settings.model,
+      temperature: 0.2,
+      messages: buildQuestionMessages({
+        video,
+        subtitleText,
+        entries,
+        question,
+      }),
+    }),
+  })
+
+  const data = await response.json() as ChatCompletionResponse
+  if (!response.ok) {
+    throw new Error(data.error?.message ?? `AI request failed: ${response.status}`)
+  }
+
+  const content = data.choices?.[0]?.message?.content?.trim()
+  if (!content) {
+    throw new Error('AI did not return any content.')
+  }
+  return content
+}
+
+const renderHistoryEntriesForPrompt = (entries: HistoryEntry[]) => {
+  if (entries.length === 0) {
+    return '（暂无）'
+  }
+
+  return entries
+    .map(entry => {
+      if (entry.kind === 'summary') {
+        return `总结：\n${entry.content}`
+      }
+
+      const role = entry.role === 'user' ? '用户' : 'AI'
+      return `${role}：\n${entry.content}`
+    })
+    .join('\n\n---\n\n')
 }
 
 const readErrorMessage = async (response: Response) => {
