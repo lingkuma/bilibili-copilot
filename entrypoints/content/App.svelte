@@ -55,6 +55,7 @@
   let exporting = $state(false)
   let sharing = $state(false)
   let sharedUrl = $state('')
+  let sharedCopied = $state(false)
   let error = $state('')
   let settings = $state<CopilotSettings>({ ...defaultSettings })
   let viewMode = $state<'main' | 'history'>('main')
@@ -72,6 +73,7 @@
   let subtitleRequestId = 0
   let settingsSaveTimeout: number | undefined
   let savedResetTimeout: number | undefined
+  let copiedResetTimeout: number | undefined
   let settingsSaveVersion = 0
 
   onMount(() => {
@@ -105,6 +107,9 @@
       }
       if (savedResetTimeout !== undefined) {
         window.clearTimeout(savedResetTimeout)
+      }
+      if (copiedResetTimeout !== undefined) {
+        window.clearTimeout(copiedResetTimeout)
       }
       browser.runtime.onMessage.removeListener(messageListener)
       closeStream()
@@ -428,18 +433,70 @@
 
     sharing = true
     sharedUrl = ''
+    sharedCopied = false
     error = ''
     try {
       const response = await browser.runtime.sendMessage({
         type: 'SHARE_HISTORY_THREAD_TO_TELEGRAPH',
         thread: $state.snapshot(currentThread),
-      }) as RuntimeResponse<{ url: string }>
+      }) as RuntimeResponse<{ url: string; telegramError?: string }>
       const payload = unwrap(response)
       sharedUrl = payload.url
+      if (payload.telegramError) {
+        error = payload.telegramError
+      }
     } catch (currentError) {
       error = currentError instanceof Error ? currentError.message : String(currentError)
     } finally {
       sharing = false
+    }
+  }
+
+  const copySharedUrl = async () => {
+    if (!sharedUrl) {
+      return
+    }
+
+    try {
+      await writeClipboardText(sharedUrl)
+      sharedCopied = true
+      if (copiedResetTimeout !== undefined) {
+        window.clearTimeout(copiedResetTimeout)
+      }
+      copiedResetTimeout = window.setTimeout(() => {
+        sharedCopied = false
+        copiedResetTimeout = undefined
+      }, 1600)
+    } catch (currentError) {
+      error = currentError instanceof Error ? currentError.message : String(currentError)
+    }
+  }
+
+  const writeClipboardText = async (text: string) => {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+        return
+      } catch {
+        // Fall back to the legacy copy command below.
+      }
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    textarea.style.top = '0'
+    document.body.append(textarea)
+    textarea.select()
+
+    try {
+      if (!document.execCommand('copy')) {
+        throw new Error('复制链接失败。')
+      }
+    } finally {
+      textarea.remove()
     }
   }
 
@@ -508,6 +565,7 @@
     summary = ''
     chatInput = ''
     sharedUrl = ''
+    sharedCopied = false
     error = ''
     summaryLoading = false
     chatLoading = false
@@ -1081,6 +1139,43 @@
           <input bind:value={settings.telegraphAuthorUrl} placeholder="https://..." />
         </label>
 
+        <label class="check">
+          <input bind:checked={settings.telegraphAutoOpenAfterShare} type="checkbox" />
+          <span>分享完成后自动打开 Telegraph 页面</span>
+        </label>
+
+        {#if settings.telegraphAutoOpenAfterShare}
+          <label class="check">
+            <input bind:checked={settings.telegraphOpenInBackground} type="checkbox" />
+            <span>后台打开 Telegraph 标签页</span>
+          </label>
+        {/if}
+
+        <label class="check">
+          <input bind:checked={settings.telegramAutoSendEnabled} type="checkbox" />
+          <span>自动发送到 Telegram</span>
+        </label>
+
+        {#if settings.telegramAutoSendEnabled}
+          <label>
+            <span>Telegram Bot Token</span>
+            <input
+              bind:value={settings.telegramBotToken}
+              type="password"
+              autocomplete="new-password"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-form-type="other"
+              placeholder="123456:ABC-..."
+            />
+          </label>
+
+          <label>
+            <span>Telegram Chat ID</span>
+            <input bind:value={settings.telegramChatId} placeholder="-1001234567890" />
+          </label>
+        {/if}
+
         {#if saving}
           <p class="saved">自动保存中...</p>
         {:else if saved}
@@ -1171,7 +1266,12 @@
               {sharing ? '分享中...' : '分享到 Telegraph'}
             </button>
             {#if sharedUrl}
-              <a class="share-link" href={sharedUrl} target="_blank" rel="noreferrer">打开 Telegraph 页面</a>
+              <div class="share-actions">
+                <a class="share-link" href={sharedUrl} target="_blank" rel="noreferrer">打开 Telegraph 标签页</a>
+                <button class="secondary share-copy" type="button" onclick={copySharedUrl}>
+                  {sharedCopied ? '已复制' : '复制链接'}
+                </button>
+              </div>
             {/if}
           </div>
         {/if}

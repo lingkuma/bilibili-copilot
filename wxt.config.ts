@@ -20,6 +20,7 @@ export default defineConfig({
       'https://api.openai.com/*',
       'https://api.telegra.ph/*',
       'https://api.cloudinary.com/*',
+      'https://api.telegram.org/*',
     ],
     action: {
       default_title: '__MSG_extensionName__',

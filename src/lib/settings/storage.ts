@@ -32,6 +32,11 @@ export const defaultSettings: CopilotSettings = {
   telegraphShortName: 'bilibili-copilot',
   telegraphAuthorName: 'Bilibili Copilot',
   telegraphAuthorUrl: '',
+  telegraphAutoOpenAfterShare: true,
+  telegraphOpenInBackground: false,
+  telegramAutoSendEnabled: false,
+  telegramBotToken: '',
+  telegramChatId: '',
 }
 
 export const loadSettings = async () => {

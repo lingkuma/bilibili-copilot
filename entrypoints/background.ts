@@ -140,12 +140,14 @@ export default defineBackground(() => {
           content,
         })
 
-        await browser.tabs.create({
-          url: page.url,
-        })
+        const telegramError = await sendTelegraphPageToTelegram(settings, page.url, message.video.title)
+          .then(() => undefined)
+          .catch(error => error instanceof Error ? error.message : String(error))
+        await openTelegraphPageIfEnabled(settings, page.url)
 
         return ok({
           url: page.url,
+          telegramError,
         })
       }
 
@@ -153,12 +155,14 @@ export default defineBackground(() => {
         const settings = await loadSettings()
         const page = await createHistoryTelegraphPage(settings, message.thread)
 
-        await browser.tabs.create({
-          url: page.url,
-        })
+        const telegramError = await sendTelegraphPageToTelegram(settings, page.url, message.thread.video.title)
+          .then(() => undefined)
+          .catch(error => error instanceof Error ? error.message : String(error))
+        await openTelegraphPageIfEnabled(settings, page.url)
 
         return ok({
           url: page.url,
+          telegramError,
         })
       }
 
@@ -527,6 +531,51 @@ const createHistoryTelegraphPage = async (
   })
 }
 
+const openTelegraphPageIfEnabled = async (
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+  url: string,
+) => {
+  if (!settings.telegraphAutoOpenAfterShare) {
+    return
+  }
+
+  await browser.tabs.create({
+    url,
+    active: !settings.telegraphOpenInBackground,
+  })
+}
+
+const sendTelegraphPageToTelegram = async (
+  settings: Awaited<ReturnType<typeof loadSettings>>,
+  pageUrl: string,
+  title: string,
+) => {
+  if (!settings.telegramAutoSendEnabled) {
+    return
+  }
+
+  const botToken = settings.telegramBotToken.trim()
+  const chatId = settings.telegramChatId.trim()
+  if (!botToken || !chatId) {
+    throw new Error('已开启自动发送到 Telegram，请先填写 Bot Token 和 Chat ID。')
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: new URLSearchParams({
+      chat_id: chatId,
+      text: `${title}\n${pageUrl}`,
+    }),
+  })
+  const payload = await response.json().catch(() => undefined) as TelegramResponse | undefined
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.description ?? '发送到 Telegram 失败。')
+  }
+}
+
 const buildHistoryTelegraphContent = (
   thread: import('../src/lib/history/types').HistoryThread,
   imageUrlsByEntry: Map<string, Record<string, string>>,
@@ -624,4 +673,9 @@ type CloudinaryUploadResponse = {
   error?: {
     message?: string
   }
+}
+
+type TelegramResponse = {
+  ok: boolean
+  description?: string
 }

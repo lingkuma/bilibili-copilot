@@ -60,6 +60,11 @@ export interface CopilotSettings {
   telegraphShortName: string
   telegraphAuthorName: string
   telegraphAuthorUrl: string
+  telegraphAutoOpenAfterShare: boolean
+  telegraphOpenInBackground: boolean
+  telegramAutoSendEnabled: boolean
+  telegramBotToken: string
+  telegramChatId: string
 }
 
 export interface PromptTemplate {

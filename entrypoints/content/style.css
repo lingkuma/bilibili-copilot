@@ -244,7 +244,22 @@ button:disabled {
   width: 100%;
 }
 
+.share-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .share-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  box-sizing: border-box;
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #faf9f5;
   color: #2463c9;
   font: inherit;
   font-size: 13px;
@@ -254,6 +269,10 @@ button:disabled {
 
 .share-link:hover {
   text-decoration: underline;
+}
+
+.share-copy {
+  min-width: 84px;
 }
 
 .secondary,
