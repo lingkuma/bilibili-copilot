@@ -8,13 +8,11 @@ Bilibili Copilot is a browser extension for summarizing Bilibili videos with an 
 
 ## Features
 
-- **AI subtitle summaries**: Generate streamed Markdown summaries from Bilibili video subtitles.
-- **Continuous conversation, history**: Supports ongoing multi-turn dialogue and history after summarization.
-- **OpenAI-compatible configuration**: Set API Base URL, API Key, model name, language preference, and summary template.
-- **Timestamp navigation**: Timestamps in generated summaries are rendered as clickable controls that jump to the matching point in the video.
-- **Key-frame images**: Insert representative screenshots into summary sections, adjust capture times, refresh frames, or remove images.
-- **Local export**: Export Markdown and captured assets as a ZIP file.
-- **Online sharing**: Upload images through Cloudinary and publish summaries to Telegraph.
+- **AI summaries, ongoing conversation**
+- **Timestamp interaction**
+- **Key scene illustrations**
+- **Local export**
+- **Telegraph/tg bot sharing**
 
 ## Requirements
 
