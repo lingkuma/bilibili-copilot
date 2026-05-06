@@ -76,6 +76,9 @@
   let copiedResetTimeout: number | undefined
   let settingsSaveVersion = 0
   let frameCaptureQueue = Promise.resolve()
+  let autoSummaryTimeout: number | undefined
+  let lastDetectedVideoKey = ''
+  let lastAutoSummaryKey = ''
 
   onMount(() => {
     void initialize()
@@ -112,6 +115,9 @@
       if (copiedResetTimeout !== undefined) {
         window.clearTimeout(copiedResetTimeout)
       }
+      if (autoSummaryTimeout !== undefined) {
+        window.clearTimeout(autoSummaryTimeout)
+      }
       browser.runtime.onMessage.removeListener(messageListener)
       closeStream()
     }
@@ -124,7 +130,18 @@
   }
 
   const handleUrlChange = () => {
+    const detected = detectVideo()
+    const detectedKey = detected.bvid ? createDetectedVideoKey(detected) : ''
     lastUrl = location.href
+    if (detectedKey && detectedKey === lastDetectedVideoKey) {
+      void browser.runtime.sendMessage({
+        type: 'VIDEO_DETECTED',
+        video: detected,
+      })
+      return
+    }
+
+    lastDetectedVideoKey = detectedKey
     video = null
     subtitle = null
     summary = ''
@@ -138,7 +155,6 @@
     subtitleRequestId += 1
     subtitleLoading = false
 
-    const detected = detectVideo()
     if (detected.bvid) {
       void browser.runtime.sendMessage({
         type: 'VIDEO_DETECTED',
@@ -146,7 +162,9 @@
       })
     }
 
-    if (detected.bvid) {
+    if (detected.bvid && settings.autoSummaryEnabled) {
+      scheduleAutoSummary(detected)
+    } else if (detected.bvid) {
       void ensureSubtitleLoaded()
     }
   }
@@ -170,6 +188,36 @@
       return
     }
     await refreshSubtitle(false)
+  }
+
+  const scheduleAutoSummary = (detected: DetectedVideo) => {
+    const key = createDetectedVideoKey(detected)
+    if (lastAutoSummaryKey === key) {
+      return
+    }
+
+    lastAutoSummaryKey = key
+    expanded = true
+    settingsOpen = false
+    viewMode = 'main'
+
+    if (autoSummaryTimeout !== undefined) {
+      window.clearTimeout(autoSummaryTimeout)
+    }
+
+    autoSummaryTimeout = window.setTimeout(() => {
+      autoSummaryTimeout = undefined
+      const current = detectVideo()
+      if (!settings.autoSummaryEnabled || !current.bvid || createDetectedVideoKey(current) !== key) {
+        return
+      }
+
+      void summarize()
+    }, 400)
+  }
+
+  const createDetectedVideoKey = (detected: DetectedVideo) => {
+    return `${detected.bvid ?? ''}:p${detected.page ?? 1}`
   }
 
   const openPanel = () => {
