@@ -1045,136 +1045,180 @@
         onchange={() => { scheduleSettingsSave(0) }}
         onsubmit={(event) => { event.preventDefault(); persistSettingsNow() }}
       >
-        <label>
-          <span>API Base URL</span>
-          <input bind:value={settings.apiBaseUrl} placeholder="https://api.openai.com/v1" />
-        </label>
+        <section class="settings-section" aria-labelledby="settings-ai-title">
+          <h2 id="settings-ai-title">AI 接入</h2>
 
-        <label>
-          <span>API Key</span>
-          <input
-            bind:value={settings.apiKey}
-            type="password"
-            autocomplete="new-password"
-            data-1p-ignore="true"
-            data-lpignore="true"
-            data-form-type="other"
-            placeholder="sk-..."
-          />
-        </label>
-
-        <label>
-          <span>模型</span>
-          <input bind:value={settings.model} placeholder="gpt-4.1-mini" />
-        </label>
-
-        <label>
-          <span>默认字幕语言</span>
-          <input bind:value={settings.language} placeholder="zh-CN" />
-        </label>
-
-        <label class="check">
-          <input bind:checked={settings.includeTimestamps} type="checkbox" />
-          <span>发送字幕时保留时间戳</span>
-        </label>
-
-        <label class="check">
-          <input bind:checked={settings.autoSummaryEnabled} type="checkbox" />
-          <span>自动总结新打开的视频</span>
-        </label>
-
-        <label class="check">
-          <input bind:checked={settings.autoCaptureAiImages} type="checkbox" />
-          <span>自动获取 AI 建议图片</span>
-        </label>
-
-        <label>
-          <span>Cloudinary Cloud Name</span>
-          <input bind:value={settings.cloudinaryCloudName} placeholder="cloud-name" />
-        </label>
-
-        <label>
-          <span>Cloudinary API Key</span>
-          <input bind:value={settings.cloudinaryApiKey} placeholder="api-key" />
-        </label>
-
-        <label>
-          <span>Cloudinary API Secret</span>
-          <input
-            bind:value={settings.cloudinaryApiSecret}
-            type="password"
-            autocomplete="new-password"
-            data-1p-ignore="true"
-            data-lpignore="true"
-            data-form-type="other"
-            placeholder="api-secret"
-          />
-        </label>
-
-        <label>
-          <span>Telegraph Access Token</span>
-          <input
-            bind:value={settings.telegraphAccessToken}
-            type="password"
-            autocomplete="new-password"
-            data-1p-ignore="true"
-            data-lpignore="true"
-            data-form-type="other"
-            placeholder="Auto-created on first share"
-          />
-        </label>
-
-        <label>
-          <span>Telegraph Short Name</span>
-          <input bind:value={settings.telegraphShortName} placeholder="bilibili-copilot" />
-        </label>
-
-        <label>
-          <span>Telegraph Author Name</span>
-          <input bind:value={settings.telegraphAuthorName} placeholder="Bilibili Copilot" />
-        </label>
-
-        <label>
-          <span>Telegraph Author URL</span>
-          <input bind:value={settings.telegraphAuthorUrl} placeholder="https://..." />
-        </label>
-
-        <label class="check">
-          <input bind:checked={settings.telegraphAutoOpenAfterShare} type="checkbox" />
-          <span>分享完成后自动打开 Telegraph 页面</span>
-        </label>
-
-        {#if settings.telegraphAutoOpenAfterShare}
-          <label class="check">
-            <input bind:checked={settings.telegraphOpenInBackground} type="checkbox" />
-            <span>后台打开 Telegraph 标签页</span>
-          </label>
-        {/if}
-
-        <label class="check">
-          <input bind:checked={settings.telegramAutoSendEnabled} type="checkbox" />
-          <span>自动发送到 Telegram</span>
-        </label>
-
-        {#if settings.telegramAutoSendEnabled}
           <label>
-            <span>Telegram Bot Token</span>
+            <span>API Base URL</span>
+            <input bind:value={settings.apiBaseUrl} placeholder="https://api.openai.com/v1" />
+          </label>
+
+          <label>
+            <span>API Key</span>
             <input
-              bind:value={settings.telegramBotToken}
+              bind:value={settings.apiKey}
               type="password"
               autocomplete="new-password"
               data-1p-ignore="true"
               data-lpignore="true"
               data-form-type="other"
-              placeholder="123456:ABC-..."
+              placeholder="sk-..."
             />
           </label>
 
           <label>
-            <span>Telegram Chat ID</span>
-            <input bind:value={settings.telegramChatId} placeholder="-1001234567890" />
+            <span>模型</span>
+            <input bind:value={settings.model} placeholder="gpt-4.1-mini" />
           </label>
-        {/if}
+
+          <label>
+            <span>默认字幕语言</span>
+            <input bind:value={settings.language} placeholder="zh-CN" />
+          </label>
+        </section>
+
+        <section class="settings-section" aria-labelledby="settings-behavior-title">
+          <h2 id="settings-behavior-title">自动化</h2>
+
+          <label class="check">
+            <input bind:checked={settings.includeTimestamps} type="checkbox" />
+            <span>发送字幕时保留时间戳</span>
+          </label>
+
+          <label class="check">
+            <input bind:checked={settings.autoSummaryEnabled} type="checkbox" />
+            <span>自动总结新打开的视频</span>
+          </label>
+
+          <label class="check">
+            <input bind:checked={settings.autoCaptureAiImages} type="checkbox" />
+            <span>自动获取 AI 建议图片</span>
+          </label>
+        </section>
+
+        <details class="settings-group">
+          <summary>
+            <span class="settings-group-title">分享与发布</span>
+            <span class="settings-group-note">Telegraph、Cloudinary、Telegram</span>
+          </summary>
+
+          <div class="settings-group-body">
+            <details class="settings-subgroup">
+              <summary>
+                <span class="settings-group-title">Telegraph 页面</span>
+                <span class="settings-group-note">账号、作者与打开方式</span>
+              </summary>
+
+              <div class="settings-group-body">
+                <label>
+                  <span>Telegraph Access Token</span>
+                  <input
+                    bind:value={settings.telegraphAccessToken}
+                    type="password"
+                    autocomplete="new-password"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    placeholder="Auto-created on first share"
+                  />
+                </label>
+
+                <label>
+                  <span>Telegraph Short Name</span>
+                  <input bind:value={settings.telegraphShortName} placeholder="bilibili-copilot" />
+                </label>
+
+                <label>
+                  <span>Telegraph Author Name</span>
+                  <input bind:value={settings.telegraphAuthorName} placeholder="Bilibili Copilot" />
+                </label>
+
+                <label>
+                  <span>Telegraph Author URL</span>
+                  <input bind:value={settings.telegraphAuthorUrl} placeholder="https://..." />
+                </label>
+
+                <label class="check">
+                  <input bind:checked={settings.telegraphAutoOpenAfterShare} type="checkbox" />
+                  <span>分享完成后自动打开 Telegraph 页面</span>
+                </label>
+
+                {#if settings.telegraphAutoOpenAfterShare}
+                  <label class="check">
+                    <input bind:checked={settings.telegraphOpenInBackground} type="checkbox" />
+                    <span>后台打开 Telegraph 标签页</span>
+                  </label>
+                {/if}
+              </div>
+            </details>
+
+            <details class="settings-subgroup">
+              <summary>
+                <span class="settings-group-title">Cloudinary 图片托管</span>
+                <span class="settings-group-note">用于分享含图片的总结</span>
+              </summary>
+
+              <div class="settings-group-body">
+                <label>
+                  <span>Cloudinary Cloud Name</span>
+                  <input bind:value={settings.cloudinaryCloudName} placeholder="cloud-name" />
+                </label>
+
+                <label>
+                  <span>Cloudinary API Key</span>
+                  <input bind:value={settings.cloudinaryApiKey} placeholder="api-key" />
+                </label>
+
+                <label>
+                  <span>Cloudinary API Secret</span>
+                  <input
+                    bind:value={settings.cloudinaryApiSecret}
+                    type="password"
+                    autocomplete="new-password"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    placeholder="api-secret"
+                  />
+                </label>
+              </div>
+            </details>
+
+            <details class="settings-subgroup">
+              <summary>
+                <span class="settings-group-title">Telegram 推送</span>
+                <span class="settings-group-note">Bot Token、Chat ID 与自动发送</span>
+              </summary>
+
+              <div class="settings-group-body">
+                <label class="check">
+                  <input bind:checked={settings.telegramAutoSendEnabled} type="checkbox" />
+                  <span>自动发送到 Telegram</span>
+                </label>
+
+                {#if settings.telegramAutoSendEnabled}
+                  <label>
+                    <span>Telegram Bot Token</span>
+                    <input
+                      bind:value={settings.telegramBotToken}
+                      type="password"
+                      autocomplete="new-password"
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      data-form-type="other"
+                      placeholder="123456:ABC-..."
+                    />
+                  </label>
+
+                  <label>
+                    <span>Telegram Chat ID</span>
+                    <input bind:value={settings.telegramChatId} placeholder="-1001234567890" />
+                  </label>
+                {/if}
+              </div>
+            </details>
+          </div>
+        </details>
 
         {#if saving}
           <p class="saved">自动保存中...</p>

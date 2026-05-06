@@ -1,4 +1,5 @@
-# Bilibili Copilot
+# [bilibili-copilot](https://github.com/lingkuma/bilibili-copilot)
+
 
 <p align="center">
   <img src="public/icons/icon128.png" alt="Bilibili Copilot icon" width="128" height="128">
