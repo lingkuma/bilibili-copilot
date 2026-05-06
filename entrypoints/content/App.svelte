@@ -75,6 +75,7 @@
   let savedResetTimeout: number | undefined
   let copiedResetTimeout: number | undefined
   let settingsSaveVersion = 0
+  let frameCaptureQueue = Promise.resolve()
 
   onMount(() => {
     void initialize()
@@ -321,7 +322,16 @@
     return Math.max(0, player.currentTime || 0)
   }
 
-  const captureVideoFrame = async (seconds: number) => {
+  const captureVideoFrame = (seconds: number) => {
+    const request = frameCaptureQueue.then(
+      () => captureVideoFrameNow(seconds),
+      () => captureVideoFrameNow(seconds),
+    )
+    frameCaptureQueue = request.then(() => undefined, () => undefined)
+    return request
+  }
+
+  const captureVideoFrameNow = async (seconds: number) => {
     const player = document.querySelector('video') as HTMLVideoElement | null
     if (!player) {
       throw new Error('没有找到当前页面的视频播放器。')
@@ -339,7 +349,8 @@
         player.pause()
       }
 
-      await seekTo(player, seconds)
+      const target = await seekTo(player, seconds)
+      await waitForDrawableFrame(player, target)
 
       const canvas = document.createElement('canvas')
       canvas.width = player.videoWidth
@@ -371,7 +382,7 @@
     const target = Math.max(0, Math.min(seconds, duration))
 
     if (Math.abs(player.currentTime - target) < 0.15 && player.readyState >= 2) {
-      return
+      return target
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -405,6 +416,64 @@
         cleanup()
         reject(seekError)
       }
+    })
+
+    return target
+  }
+
+  const waitForDrawableFrame = async (player: HTMLVideoElement, target: number) => {
+    const video = player as HTMLVideoElement & {
+      requestVideoFrameCallback?: (
+        callback: (now: number, metadata: { mediaTime: number }) => void,
+      ) => number
+      cancelVideoFrameCallback?: (handle: number) => void
+    }
+
+    if (!video.requestVideoFrameCallback) {
+      await waitForAnimationFrame()
+      await waitForAnimationFrame()
+      return
+    }
+
+    await new Promise<void>((resolve) => {
+      let settled = false
+      let handle: number | undefined
+      const deadline = Date.now() + 700
+      const timeout = window.setTimeout(() => {
+        settle()
+      }, 700)
+
+      const settle = () => {
+        if (settled) {
+          return
+        }
+        settled = true
+        window.clearTimeout(timeout)
+        if (handle !== undefined) {
+          video.cancelVideoFrameCallback?.(handle)
+        }
+        resolve()
+      }
+
+      const requestFrame = () => {
+        handle = video.requestVideoFrameCallback?.((_now, metadata) => {
+          if (Math.abs(metadata.mediaTime - target) < 0.25 || Date.now() >= deadline) {
+            settle()
+            return
+          }
+          requestFrame()
+        })
+      }
+
+      requestFrame()
+    })
+  }
+
+  const waitForAnimationFrame = async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        resolve()
+      })
     })
   }
 
