@@ -8,7 +8,8 @@ const THREAD_STORE = 'threads'
 let dbPromise: Promise<IDBDatabase> | null = null
 
 export const createHistoryThreadId = (video: ResolvedVideo) => {
-  return `${video.bvid}:p${video.page}:cid${video.cid}`
+  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  return `${video.bvid}:p${video.page}:cid${video.cid}:${suffix}`
 }
 
 export const saveHistoryThread = async (thread: HistoryThread) => {
@@ -113,4 +114,3 @@ const runTransaction = (
     }
   })
 }
-

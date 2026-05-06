@@ -162,21 +162,6 @@ export default defineBackground(() => {
         })
       }
 
-      if (message.type === 'SHARE_HISTORY_THREAD_TO_TELEGRAM') {
-        const settings = await loadSettings()
-        const page = await createHistoryTelegraphPage(settings, message.thread)
-        const telegramUrl = createTelegramShareUrl(page.url, message.thread.video.title)
-
-        await browser.tabs.create({
-          url: telegramUrl,
-        })
-
-        return ok({
-          url: telegramUrl,
-          pageUrl: page.url,
-        })
-      }
-
       if (message.type === 'ANSWER_SUBTITLE_QUESTION') {
         const settings = await loadSettings()
         if (!isAIConfigured(settings)) {
@@ -540,13 +525,6 @@ const createHistoryTelegraphPage = async (
     authorUrl: settings.telegraphAuthorUrl.trim(),
     content,
   })
-}
-
-const createTelegramShareUrl = (url: string, title: string) => {
-  const target = new URL('https://t.me/share/url')
-  target.searchParams.set('url', url)
-  target.searchParams.set('text', title)
-  return target.toString()
 }
 
 const buildHistoryTelegraphContent = (

@@ -44,10 +44,6 @@ export type RuntimeMessage =
     thread: HistoryThread
   }
   | {
-    type: 'SHARE_HISTORY_THREAD_TO_TELEGRAM'
-    thread: HistoryThread
-  }
-  | {
     type: 'ANSWER_SUBTITLE_QUESTION'
     video: ResolvedVideo
     question: string

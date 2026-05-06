@@ -197,7 +197,6 @@
       }
       video = payload.video
       subtitle = payload.subtitle
-      void loadThreadForVideo(payload.video)
     } catch (currentError) {
       if (requestId === subtitleRequestId && requestUrl === location.href) {
         error = currentError instanceof Error ? currentError.message : String(currentError)
@@ -444,28 +443,6 @@
     }
   }
 
-  const shareSummaryToTelegram = async () => {
-    if (!currentThread || currentThread.entries.length === 0) {
-      return
-    }
-
-    sharing = true
-    sharedUrl = ''
-    error = ''
-    try {
-      const response = await browser.runtime.sendMessage({
-        type: 'SHARE_HISTORY_THREAD_TO_TELEGRAM',
-        thread: $state.snapshot(currentThread),
-      }) as RuntimeResponse<{ url: string; pageUrl: string }>
-      const payload = unwrap(response)
-      sharedUrl = payload.pageUrl
-    } catch (currentError) {
-      error = currentError instanceof Error ? currentError.message : String(currentError)
-    } finally {
-      sharing = false
-    }
-  }
-
   const handleEntryImagesChange = (entryId: string, snapshot: ExportImageSnapshot) => {
     if (!currentThread) {
       return
@@ -499,27 +476,6 @@
     return JSON.stringify(left) === JSON.stringify(right)
   }
 
-  const loadThreadForVideo = async (targetVideo: ResolvedVideo) => {
-    try {
-      const response = await browser.runtime.sendMessage({
-        type: 'GET_HISTORY_THREAD',
-        id: createHistoryThreadId(targetVideo),
-      }) as RuntimeResponse<HistoryThread | null>
-      const thread = unwrap(response)
-      if (!thread) {
-        return
-      }
-
-      currentThread = thread
-      const latestSummary = [...thread.entries].reverse().find(entry => entry.kind === 'summary')
-      if (latestSummary) {
-        summary = latestSummary.content
-      }
-    } catch (currentError) {
-      error = currentError instanceof Error ? currentError.message : String(currentError)
-    }
-  }
-
   const loadHistoryThreads = async () => {
     historyLoading = true
     error = ''
@@ -542,6 +498,19 @@
   }
 
   const openCurrentView = () => {
+    viewMode = 'main'
+    settingsOpen = false
+  }
+
+  const startNewConversation = () => {
+    closeStream()
+    currentThread = null
+    summary = ''
+    chatInput = ''
+    sharedUrl = ''
+    error = ''
+    summaryLoading = false
+    chatLoading = false
     viewMode = 'main'
     settingsOpen = false
   }
@@ -639,7 +608,7 @@
     }
 
     const now = Date.now()
-    const thread: HistoryThread = currentThread?.id === createHistoryThreadId(video)
+    const thread: HistoryThread = currentThread && isSameVideo(currentThread.video, video)
       ? currentThread
       : {
           id: createHistoryThreadId(video),
@@ -658,6 +627,12 @@
       updatedAt: now,
     }
     void persistHistoryThread()
+  }
+
+  const isSameVideo = (left: ResolvedVideo, right: ResolvedVideo) => {
+    return left.bvid === right.bvid
+      && left.page === right.page
+      && left.cid === right.cid
   }
 
   const persistHistoryThread = async () => {
@@ -993,6 +968,9 @@
           <button class="ghost" type="button" onclick={openCurrentView}>返回</button>
         {:else}
           <button class="ghost" type="button" onclick={openHistory}>历史</button>
+          {#if currentThread?.entries.length}
+            <button class="ghost" type="button" onclick={startNewConversation}>新对话</button>
+          {/if}
           <button class="ghost" type="button" onclick={() => { settingsOpen = true }}>
             设置
           </button>
@@ -1186,14 +1164,11 @@
               <input bind:checked={exportKeepImageTags} type="checkbox" />
               <span>导出时保留 image 标签</span>
             </label>
-            <button class="secondary export-button" type="button" onclick={exportSummaryZip} disabled={exporting || loading || chatLoading}>
+            <button class="secondary export-button" type="button" onclick={exportSummaryZip} disabled={exporting || loading || !video}>
               {exporting ? '导出中...' : '导出 ZIP'}
             </button>
-            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegraph} disabled={sharing || loading || chatLoading || !video}>
+            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegraph} disabled={sharing || loading || !video}>
               {sharing ? '分享中...' : '分享到 Telegraph'}
-            </button>
-            <button class="secondary export-button" type="button" onclick={shareSummaryToTelegram} disabled={sharing || loading || chatLoading || !video}>
-              {sharing ? '分享中...' : '分享到 Telegram'}
             </button>
             {#if sharedUrl}
               <a class="share-link" href={sharedUrl} target="_blank" rel="noreferrer">打开 Telegraph 页面</a>
