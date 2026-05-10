@@ -150,6 +150,33 @@ h2 {
   font-size: 12px;
 }
 
+.subtitle-actions,
+.subtitle-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subtitle-actions {
+  flex: none;
+}
+
+.subtitle-actions button,
+.subtitle-notice button {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.subtitle-notice {
+  justify-content: space-between;
+}
+
+.subtitle-notice span {
+  min-width: 0;
+}
+
 .toolbar {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -423,6 +450,10 @@ button:disabled {
   padding: 0 12px;
 }
 
+.secondary.danger {
+  color: #8f2323;
+}
+
 .close {
   width: 32px;
   border-color: #e6dfd8;
@@ -554,6 +585,101 @@ button:disabled {
   color: #8f2323;
   padding: 0 10px;
   font-size: 12px;
+}
+
+.prompt-manager {
+  display: grid;
+  gap: 14px;
+}
+
+.prompt-section {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prompt-section-header h2,
+.prompt-section-header p {
+  margin: 0;
+}
+
+.prompt-section-header h2 {
+  color: #141413;
+  font-size: 14px;
+}
+
+.prompt-section-header p,
+.prompt-section-header span {
+  color: #6c6a64;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.prompt-list {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-card {
+  border: 1px solid #e6dfd8;
+  border-radius: 8px;
+  background: #f5f0e8;
+}
+
+.prompt-card summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.prompt-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.prompt-title {
+  color: #141413;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.prompt-description {
+  color: #6c6a64;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.prompt-card textarea[readonly] {
+  min-height: 220px;
+  border-width: 1px 0 0;
+  border-radius: 0 0 8px 8px;
+  background: #faf9f5;
+}
+
+.prompt-card-editable {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.prompt-card-editable textarea {
+  min-height: 180px;
+}
+
+.prompt-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty.compact {
+  padding: 12px;
 }
 
 .summary > p {

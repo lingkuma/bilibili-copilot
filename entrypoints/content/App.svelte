@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
   import { browser } from 'wxt/browser'
-  import { defaultTemplates } from '../../src/lib/ai/prompts'
+  import { defaultTemplates, getPromptTemplates } from '../../src/lib/ai/prompts'
   import { extractBvidFromUrl, extractPageFromUrl, stripBilibiliTitleSuffix } from '../../src/lib/bilibili/video'
   import { createZipBlob, type ZipFile } from '../../src/lib/export/zip'
   import {
@@ -58,7 +58,7 @@
   let sharedCopied = $state(false)
   let error = $state('')
   let settings = $state<CopilotSettings>({ ...defaultSettings })
-  let viewMode = $state<'main' | 'history'>('main')
+  let viewMode = $state<'main' | 'history' | 'prompt-manager'>('main')
   let currentThread = $state<HistoryThread | null>(null)
   let historyThreads = $state<HistoryThreadSummary[]>([])
   let historyLoading = $state(false)
@@ -79,6 +79,7 @@
   let autoSummaryTimeout: number | undefined
   let lastDetectedVideoKey = ''
   let lastAutoSummaryKey = ''
+  let promptTemplates = $derived(getPromptTemplates(settings.customPromptTemplates))
 
   onMount(() => {
     void initialize()
@@ -126,7 +127,17 @@
   const initialize = async () => {
     settings = await loadSettings()
     selectedTemplateId = settings.selectedTemplateId
+    ensureSelectedTemplate()
     handleUrlChange()
+  }
+
+  const ensureSelectedTemplate = () => {
+    if (promptTemplates.some(template => template.id === selectedTemplateId)) {
+      return
+    }
+
+    selectedTemplateId = defaultSettings.selectedTemplateId
+    settings.selectedTemplateId = defaultSettings.selectedTemplateId
   }
 
   const handleUrlChange = () => {
@@ -671,9 +682,66 @@
     void loadHistoryThreads()
   }
 
+  const openPromptManager = () => {
+    viewMode = 'prompt-manager'
+    settingsOpen = false
+    error = ''
+  }
+
   const openCurrentView = () => {
     viewMode = 'main'
     settingsOpen = false
+  }
+
+  const createCustomTemplateId = () => {
+    return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  }
+
+  const addCustomPromptTemplate = () => {
+    const template: PromptTemplate = {
+      id: createCustomTemplateId(),
+      name: '自定义大纲',
+      description: '按你的习惯输出视频大纲。',
+      instruction: `请根据下面的 Bilibili 视频字幕生成 Markdown 大纲。
+
+要求：
+1. 用中文回答。
+2. 保留必要的时间戳，格式使用 [MM:SS] 或 [HH:MM:SS]。
+3. 不要输出 JSON，不要使用表格。`,
+    }
+
+    settings.customPromptTemplates = [
+      ...settings.customPromptTemplates,
+      template,
+    ]
+    selectedTemplateId = template.id
+    settings.selectedTemplateId = template.id
+    scheduleSettingsSave(0)
+  }
+
+  const deleteCustomPromptTemplate = (id: string) => {
+    settings.customPromptTemplates = settings.customPromptTemplates.filter(template => template.id !== id)
+    if (selectedTemplateId === id || settings.selectedTemplateId === id) {
+      selectedTemplateId = defaultSettings.selectedTemplateId
+      settings.selectedTemplateId = defaultSettings.selectedTemplateId
+    }
+    scheduleSettingsSave(0)
+  }
+
+  const updateCustomPromptTemplate = (
+    id: string,
+    field: 'name' | 'description' | 'instruction',
+    value: string,
+  ) => {
+    settings.customPromptTemplates = settings.customPromptTemplates.map(template => (
+      template.id === id
+        ? {
+            ...template,
+            [field]: value,
+          }
+        : template
+    ))
+    scheduleSettingsSave()
   }
 
   const startNewConversation = () => {
@@ -1134,12 +1202,12 @@
     <header class="header">
       <div>
         <p class="eyebrow">Bilibili Copilot</p>
-        <h1>{settingsOpen ? '设置' : viewMode === 'history' ? '历史记录' : '字幕总结'}</h1>
+        <h1>{settingsOpen ? '设置' : viewMode === 'history' ? '历史记录' : viewMode === 'prompt-manager' ? 'Prompt 管理' : '字幕总结'}</h1>
       </div>
       <div class="header-actions">
         {#if settingsOpen}
           <button class="ghost" type="button" onclick={openCurrentView}>返回</button>
-        {:else if viewMode === 'history'}
+        {:else if viewMode === 'history' || viewMode === 'prompt-manager'}
           <button class="ghost" type="button" onclick={openCurrentView}>返回</button>
         {:else}
           <button class="ghost" type="button" onclick={openHistory}>历史</button>
@@ -1351,6 +1419,89 @@
           <p class="saved">设置已自动保存。</p>
         {/if}
       </form>
+    {:else if viewMode === 'prompt-manager'}
+      <section
+        class="content prompt-manager"
+      >
+        <section class="prompt-section" aria-labelledby="built-in-prompts-title">
+          <div class="prompt-section-header">
+            <h2 id="built-in-prompts-title">系统内置 Prompt</h2>
+            <span>{defaultTemplates.length} 个</span>
+          </div>
+
+          <div class="prompt-list">
+            {#each defaultTemplates as template (template.id)}
+              <details class="prompt-card">
+                <summary>
+                  <span class="prompt-title">{template.name}</span>
+                  <span class="prompt-description">{template.description}</span>
+                </summary>
+                <textarea readonly value={template.instruction} aria-label={`${template.name} 内容`}></textarea>
+              </details>
+            {/each}
+          </div>
+        </section>
+
+        <section class="prompt-section" aria-labelledby="custom-prompts-title">
+          <div class="prompt-section-header">
+            <div>
+              <h2 id="custom-prompts-title">自定义 Prompt</h2>
+              <p>新增的大纲会出现在主界面的 Prompt 下拉框中。</p>
+            </div>
+            <button class="secondary" type="button" onclick={addCustomPromptTemplate}>新增</button>
+          </div>
+
+          {#if settings.customPromptTemplates.length === 0}
+            <div class="empty compact">
+              <h2>还没有自定义 Prompt</h2>
+              <p>点击新增后填写名称、说明和完整 Prompt 内容。</p>
+            </div>
+          {:else}
+            <div class="prompt-list">
+              {#each settings.customPromptTemplates as template (template.id)}
+                <article class="prompt-card prompt-card-editable">
+                  <label>
+                    <span>名称</span>
+                    <input
+                      value={template.name}
+                      placeholder="例如：论文式大纲"
+                      oninput={(event) => { updateCustomPromptTemplate(template.id, 'name', event.currentTarget.value) }}
+                    />
+                  </label>
+
+                  <label>
+                    <span>说明</span>
+                    <input
+                      value={template.description}
+                      placeholder="这个 Prompt 的用途"
+                      oninput={(event) => { updateCustomPromptTemplate(template.id, 'description', event.currentTarget.value) }}
+                    />
+                  </label>
+
+                  <label>
+                    <span>Prompt 内容</span>
+                    <textarea
+                      value={template.instruction}
+                      placeholder="写入你希望 AI 遵循的大纲格式和约束"
+                      oninput={(event) => { updateCustomPromptTemplate(template.id, 'instruction', event.currentTarget.value) }}
+                    ></textarea>
+                  </label>
+
+                  <div class="prompt-card-actions">
+                    <button class="secondary danger" type="button" onclick={() => { deleteCustomPromptTemplate(template.id) }}>删除</button>
+                  </div>
+                </article>
+              {/each}
+            </div>
+          {/if}
+        </section>
+
+        {#if saving}
+          <p class="saved">自动保存中...</p>
+        {:else if saved}
+          <p class="saved">Prompt 已自动保存。</p>
+        {/if}
+      </section>
     {:else if viewMode === 'history'}
       <section class="content history-view">
         {#if historyLoading}
@@ -1399,19 +1550,25 @@
               <p class="label">字幕</p>
               <strong>{subtitle.selected?.lan_doc ?? subtitle.selected?.lan}</strong>
             </div>
-            <span>{subtitle.body.length} 条</span>
+            <div class="subtitle-actions">
+              <span>{subtitle.body.length} 条</span>
+              <button class="secondary" type="button" onclick={refreshSubtitle} disabled={loading}>刷新字幕</button>
+            </div>
           </div>
         {:else if subtitle}
-          <div class="notice">{subtitle.reason}</div>
+          <div class="notice subtitle-notice">
+            <span>{subtitle.reason}</span>
+            <button class="secondary" type="button" onclick={refreshSubtitle} disabled={loading}>刷新字幕</button>
+          </div>
         {/if}
 
         <div class="toolbar">
           <select bind:value={selectedTemplateId} aria-label="选择模板" onchange={persistSelectedTemplate}>
-            {#each defaultTemplates as template (template.id)}
+            {#each promptTemplates as template (template.id)}
               <option value={template.id}>{template.name}</option>
             {/each}
           </select>
-          <button class="secondary" type="button" onclick={refreshSubtitle} disabled={loading}>刷新</button>
+          <button class="secondary" type="button" onclick={openPromptManager}>编辑</button>
         </div>
 
         <button class="primary" type="button" onclick={summarize} disabled={loading}>

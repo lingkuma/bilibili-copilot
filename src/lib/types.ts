@@ -50,6 +50,7 @@ export interface CopilotSettings {
   model: string
   language: string
   selectedTemplateId: string
+  customPromptTemplates: PromptTemplate[]
   includeTimestamps: boolean
   autoSummaryEnabled: boolean
   autoCaptureAiImages: boolean

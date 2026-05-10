@@ -87,8 +87,13 @@ export const defaultTemplates: PromptTemplate[] = [
   },
 ]
 
-export const findTemplate = (id: string) => {
-  const template = defaultTemplates.find(item => item.id === id) ?? defaultTemplates[0]
+export const getPromptTemplates = (customTemplates: PromptTemplate[] = []) => [
+  ...defaultTemplates,
+  ...customTemplates,
+]
+
+export const findTemplate = (id: string, customTemplates: PromptTemplate[] = []) => {
+  const template = getPromptTemplates(customTemplates).find(item => item.id === id) ?? defaultTemplates[0]
   if (!template) {
     throw new Error('No prompt templates are configured.')
   }

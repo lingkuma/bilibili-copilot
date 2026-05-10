@@ -22,6 +22,7 @@ export const defaultSettings: CopilotSettings = {
   model: 'gpt-5.5',
   language: 'zh-CN',
   selectedTemplateId: 'brief-outline',
+  customPromptTemplates: [],
   includeTimestamps: true,
   autoSummaryEnabled: false,
   autoCaptureAiImages: false,

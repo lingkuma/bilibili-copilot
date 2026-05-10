@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser'
-import { defaultTemplates, findTemplate } from '../src/lib/ai/prompts'
+import { findTemplate, getPromptTemplates } from '../src/lib/ai/prompts'
 import { answerSubtitleQuestion, summarizeSubtitle, summarizeSubtitleStream } from '../src/lib/ai/summarize'
 import { getSubtitleForAI } from '../src/lib/bilibili/subtitle'
 import { extractBvidFromUrl, extractPageFromUrl, resolveVideo } from '../src/lib/bilibili/video'
@@ -58,7 +58,8 @@ export default defineBackground(() => {
           throw new Error(subtitle.reason)
         }
 
-        const template = findTemplate(message.templateId ?? settings.selectedTemplateId)
+        const templates = getPromptTemplates(settings.customPromptTemplates)
+        const template = findTemplate(message.templateId ?? settings.selectedTemplateId, settings.customPromptTemplates)
         const summary = await summarizeSubtitle({
           settings,
           template,
@@ -71,7 +72,7 @@ export default defineBackground(() => {
           subtitle,
           template,
           summary,
-          templates: defaultTemplates,
+          templates,
         })
       }
 
@@ -97,7 +98,8 @@ export default defineBackground(() => {
           throw new Error(subtitle.reason)
         }
 
-        const template = findTemplate(message.templateId ?? settings.selectedTemplateId)
+        const templates = getPromptTemplates(settings.customPromptTemplates)
+        const template = findTemplate(message.templateId ?? settings.selectedTemplateId, settings.customPromptTemplates)
         const summary = await summarizeSubtitle({
           settings,
           template,
@@ -110,7 +112,7 @@ export default defineBackground(() => {
           subtitle,
           template,
           summary,
-          templates: defaultTemplates,
+          templates,
         })
       }
 
@@ -233,14 +235,15 @@ const handleStreamRequest = async (
       throw new Error(subtitle.reason)
     }
 
-    const template = findTemplate(message.templateId ?? settings.selectedTemplateId)
+    const templates = getPromptTemplates(settings.customPromptTemplates)
+    const template = findTemplate(message.templateId ?? settings.selectedTemplateId, settings.customPromptTemplates)
     safePost(port, {
       type: 'SUMMARY_STREAM_START',
       data: {
         video,
         subtitle,
         template,
-        templates: defaultTemplates,
+        templates,
       },
     })
 
