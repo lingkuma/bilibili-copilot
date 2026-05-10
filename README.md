@@ -23,24 +23,9 @@ English version: [README.en.md](README.en.md)
 - **本地导出**
 - **Telegraph/tg bot 分享**
 
-
-
-## 邀请奖励，帮助项目持续开发
+## AI模型购买，邀请奖励，帮助项目持续开发
 本项目使用 [0-0 AI-API 中转平台](https://0-0.pro/register?ref=75RRBBR3) 完成，Gemini/Claude/GPT 最高0.1折优惠。
 点击链接注册，或使用邀请码：75RRBBR3，首充双方获得25%返利，感谢助力开发。
-(本项目和该平台无任何关系，仅作邀请奖励，支撑开发消费)
-
-## 🙏 致谢
-
-感谢真诚、友善、团结、专业的 Linuxdo 社区，让我学到那么多有关ai相关知识。
-
-<p>
-  <a href="https://linux.do">
-    <img src="https://img.shields.io/badge/LinuxDo-community-1f6feb" alt="LinuxDo">
-  </a>
-</p>
-
-- [LinuxDo](https://linux.do) 学 ai, 上 L 站!
 
 
 ## 环境要求
