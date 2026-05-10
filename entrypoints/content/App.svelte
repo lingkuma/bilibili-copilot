@@ -1165,6 +1165,14 @@
         <section class="settings-section" aria-labelledby="settings-ai-title">
           <h2 id="settings-ai-title">AI 接入</h2>
 
+          <div class="sponsor-entry">
+            <div>
+              <strong>邀请奖励：0-0 AI-API 中转平台</strong>
+              <p>Gemini/Claude/GPT 最高 0.1 折优惠，邀请码 75RRBBR3，首充双方获得 25% 返利。</p>
+            </div>
+            <a href="https://0-0.pro/register?ref=75RRBBR3" target="_blank" rel="noreferrer">注册</a>
+          </div>
+
           <label>
             <span>API Base URL</span>
             <input bind:value={settings.apiBaseUrl} placeholder="https://api.openai.com/v1" />

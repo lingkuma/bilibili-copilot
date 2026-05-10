@@ -186,6 +186,52 @@ label span {
   font-weight: 600;
 }
 
+.sponsor-entry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d9e3f7;
+  border-radius: 8px;
+  background: #f2f6ff;
+}
+
+.sponsor-entry strong {
+  display: block;
+  color: #18345f;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sponsor-entry p {
+  margin: 4px 0 0;
+  color: #53627a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.sponsor-entry a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #2463c9;
+  border-radius: 8px;
+  background: #2463c9;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sponsor-entry a:hover {
+  background: #1e56ae;
+}
+
 .settings-group,
 .settings-subgroup {
   border: 1px solid #e6dfd8;
