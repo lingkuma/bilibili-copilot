@@ -13,4 +13,7 @@ skills/bilibili
 ## 框架
 WXT + Svelte
 
+## 其他要求：
+每次更新自动更新版本号
+
 
