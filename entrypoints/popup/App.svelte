@@ -7,6 +7,24 @@
   let video = $state<ResolvedVideo | null>(null)
   let error = $state('')
 
+  const links = [
+    {
+      label: '官网',
+      description: '查看功能介绍与使用入口',
+      href: 'https://bilibili-copilot.lingkuma.org/',
+    },
+    {
+      label: 'GitHub',
+      description: '查看源码、版本和 issue',
+      href: 'https://github.com/lingkuma/bilibili-copilot',
+    },
+    {
+      label: '官方群',
+      description: '加入 Telegram 群交流反馈',
+      href: 'https://t.me/LingFishing',
+    },
+  ]
+
   onMount(() => {
     void loadCurrentVideo()
   })
@@ -24,20 +42,12 @@
       error = currentError instanceof Error ? currentError.message : String(currentError)
     }
   }
-
-  const sendToActiveTab = async (type: 'OPEN_FLOATING_PANEL' | 'OPEN_FLOATING_SETTINGS') => {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true })
-    if (tab?.id !== undefined) {
-      await browser.tabs.sendMessage(tab.id, { type })
-      window.close()
-    }
-  }
 </script>
 
 <main class="popup">
   <header>
     <p>Bilibili Copilot</p>
-    <h1>视频字幕助手</h1>
+    <h1>在视频页右下角触发插件</h1>
   </header>
 
   {#if video}
@@ -58,8 +68,12 @@
     </section>
   {/if}
 
-  <div class="actions">
-    <button class="primary" type="button" onclick={() => void sendToActiveTab('OPEN_FLOATING_PANEL')}>打开浮窗</button>
-    <button class="secondary" type="button" onclick={() => void sendToActiveTab('OPEN_FLOATING_SETTINGS')}>设置</button>
-  </div>
+  <nav class="links" aria-label="项目链接">
+    {#each links as link}
+      <a href={link.href} target="_blank" rel="noreferrer">
+        <span>{link.label}</span>
+        <small>{link.description}</small>
+      </a>
+    {/each}
+  </nav>
 </main>
