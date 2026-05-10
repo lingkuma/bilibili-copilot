@@ -55,8 +55,18 @@ export const getSubtitleBody = async (subtitleUrl: string) => {
   return json.body
 }
 
+const findSubtitleByLanguage = (subtitles: SubtitleInfo[], language?: string) => {
+  const normalized = language?.trim()
+  if (!normalized) {
+    return undefined
+  }
+
+  return subtitles.find(item => item.lan === normalized)
+    ?? subtitles.find(item => item.lan.toLowerCase() === normalized.toLowerCase())
+}
+
 const selectSubtitle = (subtitles: SubtitleInfo[], language?: string) => {
-  return subtitles.find(item => item.lan === language)
+  return findSubtitleByLanguage(subtitles, language)
     ?? subtitles.find(item => item.lan === 'zh-CN')
     ?? subtitles.find(item => item.lan.startsWith('zh'))
     ?? subtitles.find(item => item.lan.startsWith('ai-zh'))

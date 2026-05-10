@@ -139,10 +139,20 @@ h2 {
   padding: 12px 14px;
 }
 
-.subtitle-status strong {
-  display: block;
-  margin-top: 3px;
-  font-size: 14px;
+.subtitle-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.subtitle-picker label {
+  display: grid;
+  gap: 6px;
+}
+
+.subtitle-picker select {
+  width: 100%;
+  height: 34px;
+  font-size: 13px;
 }
 
 .subtitle-status span {

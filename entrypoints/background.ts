@@ -44,7 +44,10 @@ export default defineBackground(() => {
 
       if (message.type === 'GET_SUBTITLE_FOR_VIDEO') {
         const settings = await loadSettings()
-        return ok(await getCachedSubtitleForVideo(message.video, settings, message.force))
+        return ok(await getCachedSubtitleForVideo(message.video, settings, {
+          force: message.force,
+          language: message.language,
+        }))
       }
 
       if (message.type === 'SUMMARIZE_VIDEO') {
@@ -53,7 +56,9 @@ export default defineBackground(() => {
           throw new Error('请先在设置里配置 AI API。')
         }
 
-        const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings)
+        const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings, {
+          language: message.language,
+        })
         if (!subtitle.available) {
           throw new Error(subtitle.reason)
         }
@@ -93,7 +98,9 @@ export default defineBackground(() => {
         }
 
         const detected = await getActiveResolvedVideo()
-        const { video, subtitle } = await getCachedSubtitleForVideo(detected, settings)
+        const { video, subtitle } = await getCachedSubtitleForVideo(detected, settings, {
+          language: message.language,
+        })
         if (!subtitle.available) {
           throw new Error(subtitle.reason)
         }
@@ -174,7 +181,9 @@ export default defineBackground(() => {
           throw new Error('请先在设置里配置 AI API。')
         }
 
-        const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings)
+        const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings, {
+          language: message.language,
+        })
         if (!subtitle.available) {
           throw new Error(subtitle.reason)
         }
@@ -230,7 +239,9 @@ const handleStreamRequest = async (
       throw new Error('请先在设置里配置 AI API。')
     }
 
-    const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings)
+    const { video, subtitle } = await getCachedSubtitleForVideo(message.video, settings, {
+      language: message.language,
+    })
     if (!subtitle.available) {
       throw new Error(subtitle.reason)
     }
@@ -290,14 +301,18 @@ const safePost = (port: Browser.runtime.Port, message: StreamPortEvent) => {
 const getCachedSubtitleForVideo = async (
   detected: DetectedVideo,
   settings: Awaited<ReturnType<typeof loadSettings>>,
-  force = false,
+  options: {
+    force?: boolean
+    language?: string
+  } = {},
 ): Promise<SubtitlePayload> => {
   const video = await resolveVideo(detected)
-  const cacheKey = createSubtitleCacheKey(video, settings)
+  const language = options.language?.trim() || settings.language.trim()
+  const cacheKey = createSubtitleCacheKey(video, settings, language)
   let request = subtitleCache.get(cacheKey)
-  if (!request || force) {
+  if (!request || options.force) {
     const nextRequest = getSubtitleForAI(video, {
-      language: settings.language,
+      language,
       includeTimestamps: settings.includeTimestamps,
     })
       .then(subtitle => ({ video, subtitle }))
@@ -316,12 +331,13 @@ const getCachedSubtitleForVideo = async (
 const createSubtitleCacheKey = (
   video: ResolvedVideo,
   settings: Awaited<ReturnType<typeof loadSettings>>,
+  language: string,
 ) => {
   return [
     video.bvid,
     video.cid,
     video.page,
-    settings.language.trim(),
+    language,
     settings.includeTimestamps ? 'with-timestamps' : 'without-timestamps',
   ].join(':')
 }

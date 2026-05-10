@@ -15,7 +15,7 @@
   import { createHistoryThreadId } from '../../src/lib/history/storage'
   import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
-  import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI } from '../../src/lib/types'
+  import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI, SubtitleInfo } from '../../src/lib/types'
   import MarkdownView from './MarkdownView.svelte'
 
   interface SubtitlePayload {
@@ -47,6 +47,7 @@
   let subtitle = $state<SubtitleForAI | null>(null)
   let summary = $state('')
   let selectedTemplateId = $state('brief-outline')
+  let selectedSubtitleLanguage = $state('')
   let subtitleLoading = $state(false)
   let summaryLoading = $state(false)
   let loading = $derived(subtitleLoading || summaryLoading)
@@ -127,6 +128,7 @@
   const initialize = async () => {
     settings = await loadSettings()
     selectedTemplateId = settings.selectedTemplateId
+    selectedSubtitleLanguage = settings.language.trim()
     ensureSelectedTemplate()
     handleUrlChange()
   }
@@ -155,6 +157,7 @@
     lastDetectedVideoKey = detectedKey
     video = null
     subtitle = null
+    selectedSubtitleLanguage = settings.language.trim()
     summary = ''
     currentThread = null
     chatInput = ''
@@ -239,7 +242,26 @@
     }
   }
 
-  const refreshSubtitle = async (forceOrEvent: boolean | Event = true) => {
+  const getRequestedSubtitleLanguage = () => {
+    return subtitle?.selected?.lan ?? (selectedSubtitleLanguage || settings.language.trim())
+  }
+
+  const formatSubtitleOption = (item: SubtitleInfo) => {
+    const name = item.lan_doc.trim() || item.lan
+    return name === item.lan ? item.lan : `${name} (${item.lan})`
+  }
+
+  const selectSubtitleLanguage = (event: Event) => {
+    const language = (event.currentTarget as HTMLSelectElement).value
+    if (!language || language === subtitle?.selected?.lan || loading) {
+      return
+    }
+
+    selectedSubtitleLanguage = language
+    void refreshSubtitle(true, language)
+  }
+
+  const refreshSubtitle = async (forceOrEvent: boolean | Event = true, language = getRequestedSubtitleLanguage()) => {
     const force = typeof forceOrEvent === 'boolean' ? forceOrEvent : true
     const requestId = ++subtitleRequestId
     const requestUrl = location.href
@@ -255,6 +277,7 @@
         type: 'GET_SUBTITLE_FOR_VIDEO',
         video: detected,
         force,
+        language,
       }) as RuntimeResponse<SubtitlePayload>
       const payload = unwrap(response)
       if (requestId !== subtitleRequestId || requestUrl !== location.href) {
@@ -262,6 +285,7 @@
       }
       video = payload.video
       subtitle = payload.subtitle
+      selectedSubtitleLanguage = payload.subtitle.selected?.lan ?? language
     } catch (currentError) {
       if (requestId === subtitleRequestId && requestUrl === location.href) {
         error = currentError instanceof Error ? currentError.message : String(currentError)
@@ -294,6 +318,7 @@
           const payload = message.data as StreamStartPayload
           video = payload.video
           subtitle = payload.subtitle
+          selectedSubtitleLanguage = payload.subtitle.selected?.lan ?? selectedSubtitleLanguage
         }
 
         if (message.type === 'SUMMARY_STREAM_DELTA') {
@@ -335,6 +360,7 @@
         type: 'STREAM_SUMMARIZE_VIDEO',
         video: detected,
         templateId: selectedTemplateId,
+        language: getRequestedSubtitleLanguage(),
       })
     } catch (currentError) {
       error = currentError instanceof Error ? currentError.message : String(currentError)
@@ -828,6 +854,7 @@
         video,
         question,
         entries: previousEntries,
+        language: getRequestedSubtitleLanguage(),
       }) as RuntimeResponse<{ answer: string }>
       const payload = unwrap(response)
       appendHistoryEntry({
@@ -1549,9 +1576,20 @@
 
         {#if subtitle?.available}
           <div class="subtitle-status">
-            <div>
-              <p class="label">字幕</p>
-              <strong>{subtitle.selected?.lan_doc ?? subtitle.selected?.lan}</strong>
+            <div class="subtitle-picker">
+              <label>
+                <span class="label">字幕</span>
+                <select
+                  value={subtitle.selected?.lan ?? selectedSubtitleLanguage}
+                  aria-label="选择字幕语言"
+                  onchange={selectSubtitleLanguage}
+                  disabled={loading}
+                >
+                  {#each subtitle.subtitles as item (item.id_str || item.id)}
+                    <option value={item.lan}>{formatSubtitleOption(item)}</option>
+                  {/each}
+                </select>
+              </label>
             </div>
             <div class="subtitle-actions">
               <span>{subtitle.body.length} 条</span>

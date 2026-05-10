@@ -20,15 +20,18 @@ export type RuntimeMessage =
     type: 'GET_SUBTITLE_FOR_VIDEO'
     video: DetectedVideo
     force?: boolean
+    language?: string
   }
   | {
     type: 'SUMMARIZE_VIDEO'
     video: DetectedVideo
     templateId?: string
+    language?: string
   }
   | {
     type: 'SUMMARIZE_CURRENT_VIDEO'
     templateId?: string
+    language?: string
   }
   | {
     type: 'GET_SUBTITLE_CURRENT_VIDEO'
@@ -48,6 +51,7 @@ export type RuntimeMessage =
     video: ResolvedVideo
     question: string
     entries: HistoryEntry[]
+    language?: string
   }
   | {
     type: 'SAVE_HISTORY_THREAD'
@@ -75,6 +79,7 @@ export type StreamPortRequest = {
   type: 'STREAM_SUMMARIZE_VIDEO'
   video: DetectedVideo
   templateId?: string
+  language?: string
 }
 
 export type StreamPortEvent =
