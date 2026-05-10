@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Bilibili Copilot 是一个用 AI 总结 Bilibili 视频字幕的浏览器扩展。"
+    />
+    <title>Bilibili Copilot</title>
+    <link rel="icon" href="./assets/icon128.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Bilibili Copilot 首页">
+        <img src="./assets/icon128.png" alt="" width="32" height="32" />
+        <span>Bilibili Copilot</span>
+      </a>
+      <nav class="nav-links" aria-label="主要链接">
+        <a href="#features">场景</a>
+        <a href="#community">社群</a>
+        <a href="https://github.com/lingkuma/bilibili-copilot">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Bilibili AI 视频总结助手</p>
+          <h1>迅速拿捏视频重点</h1>
+          <p class="hero-text">
+            Bilibili Copilot 会读取当前视频字幕，调用兼容 OpenAI Chat Completions 的模型，生成结构化 Markdown 总结。适合长视频学习、课程回顾、访谈速读和资料整理。
+          </p>
+          <div class="hero-actions" aria-label="行动入口">
+            <a class="button primary" href="https://github.com/lingkuma/bilibili-copilot">查看仓库</a>
+            <a class="button secondary" href="https://t.me/LingFishing">加入 Telegram 群</a>
+          </div>
+        </div>
+
+        <figure class="product-shot">
+          <img src="./assets/demo.png" alt="Bilibili Copilot 使用示例占位图" />
+          <figcaption>Bilibili 视频页内的总结与整理体验。</figcaption>
+        </figure>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">使用场景</p>
+          <h2>不需要复杂文档，打开视频就能用。</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span>01</span>
+            <h3>长视频快速扫读</h3>
+            <p>先看总结和要点，再决定是否深入观看完整内容。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>按时间戳回看</h3>
+            <p>保留关键片段线索，方便回到视频里的具体位置。</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>整理学习笔记</h3>
+            <p>把字幕内容转成结构化 Markdown，后续复制、导出、归档都更顺手。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="community" class="section community">
+        <div>
+          <p class="eyebrow">社群交流</p>
+          <h2>反馈、问题和想法都可以集中到社群里。</h2>
+          <p>
+            官网先承担入口职责：仓库主页用于查看代码和版本，Telegram 群用于交流使用体验、反馈兼容问题和讨论后续方向。
+          </p>
+        </div>
+        <div class="link-panel">
+          <a href="https://github.com/lingkuma/bilibili-copilot">
+            <strong>GitHub 仓库</strong>
+            <span>查看源码、提交 issue、跟进版本变化</span>
+          </a>
+          <a href="https://t.me/LingFishing">
+            <strong>Telegram 群组</strong>
+            <span>交流使用体验、反馈兼容问题、讨论后续方向</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Bilibili Copilot</span>
+      <a href="https://github.com/lingkuma/bilibili-copilot">GitHub</a>
+    </footer>
+  </body>
+</html>

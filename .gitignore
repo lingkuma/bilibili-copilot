@@ -3,4 +3,5 @@ node_modules
 .output
 .wxt
 dist
+site-dist
 *.local

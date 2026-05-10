@@ -9,6 +9,7 @@
     "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
+    "site:build": "node site/build.mjs",
     "zip": "wxt zip",
     "compile": "wxt compile",
     "check": "wxt prepare && svelte-check --tsconfig ./tsconfig.json"
