@@ -7,6 +7,12 @@
 
 Bilibili Copilot is a browser extension for summarizing Bilibili videos with an AI provider. It reads subtitles from the current Bilibili video page, sends them to an OpenAI-compatible Chat Completions API, and renders the result as structured Markdown.
 
+
+<p align="center">
+  <img src="site/assets/demo.png" alt="bilibili-copilot demo" >
+</p>
+
+
 ## Features
 
 - **AI summaries, ongoing conversation**
