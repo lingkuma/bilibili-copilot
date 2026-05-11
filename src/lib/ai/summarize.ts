@@ -1,5 +1,6 @@
 import type { CopilotSettings, PromptTemplate, ResolvedVideo } from '../types'
 import type { HistoryEntry } from '../history/types'
+import { getActiveAIProvider } from '../settings/storage'
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -102,16 +103,17 @@ export const summarizeSubtitle = async (input: {
   subtitleText: string
 }) => {
   const { settings, template, video, subtitleText } = input
-  const endpoint = `${trimTrailingSlash(settings.apiBaseUrl)}/chat/completions`
+  const provider = getActiveAIProvider(settings)
+  const endpoint = `${trimTrailingSlash(provider.apiBaseUrl)}/chat/completions`
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: settings.model,
+      model: provider.model,
       temperature: 0.2,
       messages: buildMessages({ template, video, subtitleText }),
     }),
@@ -140,16 +142,17 @@ export const summarizeSubtitleStream = async (
   onDelta: (content: string) => void,
 ) => {
   const { settings, template, video, subtitleText, signal } = input
-  const endpoint = `${trimTrailingSlash(settings.apiBaseUrl)}/chat/completions`
+  const provider = getActiveAIProvider(settings)
+  const endpoint = `${trimTrailingSlash(provider.apiBaseUrl)}/chat/completions`
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: settings.model,
+      model: provider.model,
       temperature: 0.2,
       stream: true,
       messages: buildMessages({ template, video, subtitleText }),
@@ -209,16 +212,17 @@ export const answerSubtitleQuestion = async (input: {
   question: string
 }) => {
   const { settings, video, subtitleText, entries, question } = input
-  const endpoint = `${trimTrailingSlash(settings.apiBaseUrl)}/chat/completions`
+  const provider = getActiveAIProvider(settings)
+  const endpoint = `${trimTrailingSlash(provider.apiBaseUrl)}/chat/completions`
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${settings.apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: settings.model,
+      model: provider.model,
       temperature: 0.2,
       messages: buildQuestionMessages({
         video,

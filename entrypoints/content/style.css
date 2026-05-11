@@ -223,6 +223,23 @@ label span {
   font-weight: 600;
 }
 
+.provider-switcher {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.provider-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.provider-actions button {
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .sponsor-entry {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -970,6 +987,14 @@ button:disabled {
   .window {
     right: 14px;
     bottom: 72px;
+  }
+
+  .provider-switcher {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-actions {
+    justify-content: flex-end;
   }
 
   .frame-block figcaption {

@@ -44,10 +44,20 @@ export interface SubtitleForAI {
   text: string
 }
 
+export interface AIProviderConfig {
+  id: string
+  name: string
+  apiBaseUrl: string
+  apiKey: string
+  model: string
+}
+
 export interface CopilotSettings {
   apiBaseUrl: string
   apiKey: string
   model: string
+  aiProviders: AIProviderConfig[]
+  selectedAiProviderId: string
   language: string
   selectedTemplateId: string
   customPromptTemplates: PromptTemplate[]

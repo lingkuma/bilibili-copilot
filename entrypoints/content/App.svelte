@@ -17,7 +17,7 @@
   import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
   import { collectPendingShareImageTargets } from '../../src/lib/share/telegraph'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
-  import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI, SubtitleInfo } from '../../src/lib/types'
+  import type { AIProviderConfig, CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI, SubtitleInfo } from '../../src/lib/types'
   import MarkdownView from './MarkdownView.svelte'
 
   interface SubtitlePayload {
@@ -89,6 +89,8 @@
   let lastDetectedVideoKey = ''
   let lastAutoSummaryKey = ''
   let promptTemplates = $derived(getPromptTemplates(settings.customPromptTemplates))
+  let activeAiProviderIndex = $derived(Math.max(0, settings.aiProviders.findIndex(provider => provider.id === settings.selectedAiProviderId)))
+  let activeAiProvider = $derived(settings.aiProviders[activeAiProviderIndex] ?? settings.aiProviders[0])
 
   onMount(() => {
     void initialize()
@@ -803,6 +805,78 @@
     settingsOpen = false
   }
 
+  const createAiProviderId = () => {
+    return `provider-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  }
+
+  const addAiProvider = () => {
+    const provider: AIProviderConfig = {
+      id: createAiProviderId(),
+      name: `Provider ${settings.aiProviders.length + 1}`,
+      apiBaseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: activeAiProvider?.model || defaultSettings.model,
+    }
+
+    settings.aiProviders = [
+      ...settings.aiProviders,
+      provider,
+    ]
+    settings.selectedAiProviderId = provider.id
+    syncActiveAiProviderFields()
+    scheduleSettingsSave(0)
+  }
+
+  const deleteActiveAiProvider = () => {
+    if (settings.aiProviders.length <= 1 || !activeAiProvider) {
+      return
+    }
+
+    const nextProviders = settings.aiProviders.filter(provider => provider.id !== activeAiProvider.id)
+    const nextProvider = nextProviders[Math.max(0, activeAiProviderIndex - 1)] ?? nextProviders[0]
+    if (!nextProvider) {
+      return
+    }
+
+    settings.aiProviders = nextProviders
+    settings.selectedAiProviderId = nextProvider.id
+    syncActiveAiProviderFields()
+    scheduleSettingsSave(0)
+  }
+
+  const updateActiveAiProvider = (field: keyof Omit<AIProviderConfig, 'id'>, value: string) => {
+    if (!activeAiProvider) {
+      return
+    }
+
+    settings.aiProviders = settings.aiProviders.map(provider => (
+      provider.id === activeAiProvider.id
+        ? {
+            ...provider,
+            [field]: value,
+          }
+        : provider
+    ))
+  }
+
+  const selectAiProvider = (event: Event) => {
+    settings.selectedAiProviderId = (event.currentTarget as HTMLSelectElement).value
+    syncActiveAiProviderFields()
+    scheduleSettingsSave(0)
+  }
+
+  const syncActiveAiProviderFields = () => {
+    const provider = settings.aiProviders.find(item => item.id === settings.selectedAiProviderId)
+      ?? settings.aiProviders[0]
+    if (!provider) {
+      return
+    }
+
+    settings.apiBaseUrl = provider.apiBaseUrl
+    settings.apiKey = provider.apiKey
+    settings.model = provider.model
+  }
+
   const createCustomTemplateId = () => {
     return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   }
@@ -1261,6 +1335,7 @@
 
   const persistSettings = async (version = ++settingsSaveVersion) => {
     await tick()
+    syncActiveAiProviderFields()
     const snapshot = $state.snapshot(settings)
 
     saving = true
@@ -1355,28 +1430,70 @@
             <a href="https://0-0.pro/register?ref=75RRBBR3" target="_blank" rel="noreferrer">注册</a>
           </div>
 
-          <label>
-            <span>API Base URL</span>
-            <input bind:value={settings.apiBaseUrl} placeholder="https://api.openai.com/v1" />
-          </label>
+          <div class="provider-switcher">
+            <label>
+              <span>API 配置</span>
+              <select value={settings.selectedAiProviderId} onchange={selectAiProvider}>
+                {#each settings.aiProviders as provider (provider.id)}
+                  <option value={provider.id}>{provider.name || '未命名配置'}</option>
+                {/each}
+              </select>
+            </label>
+            <div class="provider-actions">
+              <button class="secondary" type="button" onclick={addAiProvider}>新增</button>
+              <button
+                class="secondary danger"
+                type="button"
+                onclick={deleteActiveAiProvider}
+                disabled={settings.aiProviders.length <= 1}
+              >
+                删除
+              </button>
+            </div>
+          </div>
 
-          <label>
-            <span>API Key</span>
-            <input
-              bind:value={settings.apiKey}
-              type="password"
-              autocomplete="new-password"
-              data-1p-ignore="true"
-              data-lpignore="true"
-              data-form-type="other"
-              placeholder="sk-..."
-            />
-          </label>
+          {#if activeAiProvider}
+            <label>
+              <span>配置名称</span>
+              <input
+                value={activeAiProvider.name}
+                oninput={(event) => { updateActiveAiProvider('name', (event.currentTarget as HTMLInputElement).value) }}
+                placeholder="OpenAI"
+              />
+            </label>
 
-          <label>
-            <span>模型</span>
-            <input bind:value={settings.model} placeholder="gpt-4.1-mini" />
-          </label>
+            <label>
+              <span>API Base URL</span>
+              <input
+                value={activeAiProvider.apiBaseUrl}
+                oninput={(event) => { updateActiveAiProvider('apiBaseUrl', (event.currentTarget as HTMLInputElement).value) }}
+                placeholder="https://api.openai.com/v1"
+              />
+            </label>
+
+            <label>
+              <span>API Key</span>
+              <input
+                value={activeAiProvider.apiKey}
+                oninput={(event) => { updateActiveAiProvider('apiKey', (event.currentTarget as HTMLInputElement).value) }}
+                type="password"
+                autocomplete="new-password"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                data-form-type="other"
+                placeholder="sk-..."
+              />
+            </label>
+
+            <label>
+              <span>模型</span>
+              <input
+                value={activeAiProvider.model}
+                oninput={(event) => { updateActiveAiProvider('model', (event.currentTarget as HTMLInputElement).value) }}
+                placeholder="gpt-4.1-mini"
+              />
+            </label>
+          {/if}
 
           <label>
             <span>默认字幕语言</span>
