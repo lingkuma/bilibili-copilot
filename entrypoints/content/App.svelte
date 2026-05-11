@@ -8,12 +8,14 @@
     createManualBlockImageKey,
     createManualListItemImageKey,
     parseConstrainedMarkdown,
+    parseTimestamp,
     type InlinePart,
     type MarkdownBlock,
   } from '../../src/lib/markdown/parse'
   import type { HistoryEntry, HistoryThread, HistoryThreadSummary } from '../../src/lib/history/types'
   import { createHistoryThreadId } from '../../src/lib/history/storage'
   import type { RuntimeMessage, RuntimeResponse, StreamPortEvent } from '../../src/lib/messages'
+  import { collectPendingShareImageTargets } from '../../src/lib/share/telegraph'
   import { defaultSettings, loadSettings, saveSettings } from '../../src/lib/settings/storage'
   import type { CopilotSettings, DetectedVideo, PromptTemplate, ResolvedVideo, SubtitleForAI, SubtitleInfo } from '../../src/lib/types'
   import MarkdownView from './MarkdownView.svelte'
@@ -596,9 +598,10 @@
     sharedCopied = false
     error = ''
     try {
+      const thread = await prepareThreadImagesForShare(currentThread)
       const response = await browser.runtime.sendMessage({
         type: 'SHARE_HISTORY_THREAD_TO_TELEGRAPH',
-        thread: $state.snapshot(currentThread),
+        thread,
       }) as RuntimeResponse<{ url: string; telegramError?: string }>
       const payload = unwrap(response)
       sharedUrl = payload.url
@@ -610,6 +613,81 @@
     } finally {
       sharing = false
     }
+  }
+
+  const prepareThreadImagesForShare = async (thread: HistoryThread) => {
+    let nextThread = thread
+    let changed = false
+
+    for (const entry of thread.entries) {
+      const snapshot = entry.images ?? createEmptyImageSnapshot()
+      const targets = collectPendingShareImageTargets(entry.content, snapshot)
+      if (targets.length === 0) {
+        continue
+      }
+
+      const nextImages: ExportImageSnapshot = {
+        images: {
+          ...snapshot.images,
+        },
+        deletedImageKeys: {
+          ...snapshot.deletedImageKeys,
+        },
+      }
+
+      for (const target of targets) {
+        const current = nextImages.images[target.key]
+        const label = (current?.label || target.label).trim()
+        const seconds = parseTimestamp(label) ?? current?.seconds ?? target.seconds
+        const source = current?.source ?? target.source
+
+        nextImages.images[target.key] = {
+          status: 'loading',
+          source,
+          seconds,
+          label,
+        }
+
+        try {
+          nextImages.images[target.key] = {
+            status: 'loaded',
+            source,
+            seconds,
+            label,
+            dataUrl: await captureVideoFrame(seconds),
+          }
+        } catch (currentError) {
+          nextImages.images[target.key] = {
+            status: 'error',
+            source,
+            seconds,
+            label,
+            error: currentError instanceof Error ? currentError.message : String(currentError),
+          }
+        }
+      }
+
+      nextThread = {
+        ...nextThread,
+        entries: nextThread.entries.map(currentEntry => (
+          currentEntry.id === entry.id
+            ? {
+                ...currentEntry,
+                images: nextImages,
+              }
+            : currentEntry
+        )),
+        updatedAt: Date.now(),
+      }
+      changed = true
+    }
+
+    if (changed) {
+      currentThread = nextThread
+      void persistHistoryThread()
+    }
+
+    return nextThread
   }
 
   const copySharedUrl = async () => {
@@ -1364,7 +1442,7 @@
 
                 <label>
                   <span>Telegraph Author URL</span>
-                  <input bind:value={settings.telegraphAuthorUrl} placeholder="https://..." />
+                  <input bind:value={settings.telegraphAuthorUrl} placeholder="https://bilibili-copilot.lingkuma.org" />
                 </label>
 
                 <label class="check">

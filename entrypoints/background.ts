@@ -5,8 +5,14 @@ import { getSubtitleForAI } from '../src/lib/bilibili/subtitle'
 import { extractBvidFromUrl, extractPageFromUrl, resolveVideo } from '../src/lib/bilibili/video'
 import { deleteHistoryThread, getHistoryThread, listHistoryThreads, saveHistoryThread } from '../src/lib/history/storage'
 import { fail, ok, type RuntimeMessage, type StreamPortEvent, type StreamPortRequest } from '../src/lib/messages'
-import { buildTelegraphContent, collectShareImageEntries } from '../src/lib/share/telegraph'
-import { isAIConfigured, loadSettings, saveSettings } from '../src/lib/settings/storage'
+import {
+  buildTelegraphContent,
+  collectShareImageEntries,
+  paginateTelegraphContent,
+  withTelegraphPageNavigation,
+  type TelegraphNode,
+} from '../src/lib/share/telegraph'
+import { DEFAULT_TELEGRAPH_AUTHOR_URL, isAIConfigured, loadSettings, saveSettings } from '../src/lib/settings/storage'
 import type { DetectedVideo, ResolvedVideo, SubtitleForAI } from '../src/lib/types'
 
 const tabVideos = new Map<number, DetectedVideo>()
@@ -145,7 +151,7 @@ export default defineBackground(() => {
           title: message.video.title,
           slugTitle: createTelegraphSlugTitle(message.video),
           authorName: settings.telegraphAuthorName.trim() || 'Bilibili Copilot',
-          authorUrl: settings.telegraphAuthorUrl.trim(),
+          authorUrl: getTelegraphAuthorUrl(settings),
           content,
         })
 
@@ -374,7 +380,7 @@ const ensureTelegraphAccessToken = async (settings: Awaited<ReturnType<typeof lo
 
   const shortName = settings.telegraphShortName.trim() || 'bilibili-copilot'
   const authorName = settings.telegraphAuthorName.trim() || 'Bilibili Copilot'
-  const authorUrl = settings.telegraphAuthorUrl.trim()
+  const authorUrl = getTelegraphAuthorUrl(settings)
   const response = await fetch('https://api.telegra.ph/createAccount', {
     method: 'POST',
     headers: {
@@ -407,7 +413,47 @@ const createTelegraphPage = async (input: {
   slugTitle: string
   authorName: string
   authorUrl: string
-  content: ReturnType<typeof buildTelegraphContent>
+  content: TelegraphNode[]
+}) => {
+  const contentPages = paginateTelegraphContent(input.content)
+  if (contentPages.length === 1) {
+    return createSingleTelegraphPage(input)
+  }
+
+  const drafts: Array<{ path: string; url: string }> = []
+  for (let index = 0; index < contentPages.length; index++) {
+    drafts.push(await createTelegraphDraftPage({
+      ...input,
+      slugTitle: index === 0 ? input.slugTitle : `${input.slugTitle}-${index + 1}`,
+    }))
+  }
+
+  const urls = drafts.map(draft => draft.url)
+  let firstPage: { url: string } | undefined
+  for (let index = 0; index < contentPages.length; index++) {
+    const page = await editTelegraphPage({
+      accessToken: input.accessToken,
+      path: drafts[index]?.path ?? '',
+      title: `${input.title} (${index + 1}/${contentPages.length})`,
+      authorName: input.authorName,
+      authorUrl: input.authorUrl,
+      content: withTelegraphPageNavigation(contentPages[index] ?? [], urls, index),
+    })
+    if (index === 0) {
+      firstPage = page
+    }
+  }
+
+  return firstPage ?? { url: urls[0] ?? '' }
+}
+
+const createSingleTelegraphPage = async (input: {
+  accessToken: string
+  title: string
+  slugTitle: string
+  authorName: string
+  authorUrl: string
+  content: TelegraphNode[]
 }) => {
   const response = await fetch('https://api.telegra.ph/createPage', {
     method: 'POST',
@@ -437,13 +483,43 @@ const createTelegraphPage = async (input: {
   })
 }
 
+const createTelegraphDraftPage = async (input: {
+  accessToken: string
+  slugTitle: string
+  authorName: string
+  authorUrl: string
+}) => {
+  const response = await fetch('https://api.telegra.ph/createPage', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: new URLSearchParams({
+      access_token: input.accessToken,
+      title: input.slugTitle,
+      author_name: input.authorName,
+      ...(input.authorUrl ? { author_url: input.authorUrl } : {}),
+      content: JSON.stringify([{
+        tag: 'p',
+        children: ['Creating page...'],
+      }]),
+      return_content: 'false',
+    }),
+  })
+  const payload = await response.json() as TelegraphResponse<{ path: string; url: string }>
+  if (!payload.ok || !payload.result?.path || !payload.result.url) {
+    throw new Error(payload.error ?? '创建 Telegraph 分页失败。')
+  }
+  return payload.result
+}
+
 const editTelegraphPage = async (input: {
   accessToken: string
   path: string
   title: string
   authorName: string
   authorUrl: string
-  content: ReturnType<typeof buildTelegraphContent>
+  content: TelegraphNode[]
 }) => {
   const response = await fetch('https://api.telegra.ph/editPage', {
     method: 'POST',
@@ -545,9 +621,13 @@ const createHistoryTelegraphPage = async (
     title: thread.video.title,
     slugTitle: createTelegraphSlugTitle(thread.video),
     authorName: settings.telegraphAuthorName.trim() || 'Bilibili Copilot',
-    authorUrl: settings.telegraphAuthorUrl.trim(),
+    authorUrl: getTelegraphAuthorUrl(settings),
     content,
   })
+}
+
+const getTelegraphAuthorUrl = (settings: Awaited<ReturnType<typeof loadSettings>>) => {
+  return settings.telegraphAuthorUrl.trim() || DEFAULT_TELEGRAPH_AUTHOR_URL
 }
 
 const openTelegraphPageIfEnabled = async (

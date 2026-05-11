@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser'
 import type { CopilotSettings } from '../types'
 
 const SETTINGS_KEY = 'bilibili-copilot-settings'
+export const DEFAULT_TELEGRAPH_AUTHOR_URL = 'https://bilibili-copilot.lingkuma.org'
 
 type StoredCopilotSettings = Partial<CopilotSettings> & {
   defaultTemplateId?: string
@@ -32,7 +33,7 @@ export const defaultSettings: CopilotSettings = {
   telegraphAccessToken: '',
   telegraphShortName: 'bilibili-copilot',
   telegraphAuthorName: 'Bilibili Copilot',
-  telegraphAuthorUrl: '',
+  telegraphAuthorUrl: DEFAULT_TELEGRAPH_AUTHOR_URL,
   telegraphAutoOpenAfterShare: true,
   telegraphOpenInBackground: false,
   telegramAutoSendEnabled: false,
