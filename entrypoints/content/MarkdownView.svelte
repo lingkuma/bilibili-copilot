@@ -6,6 +6,7 @@
     parseConstrainedMarkdown,
     parseTimestamp,
     type InlinePart,
+    type MarkdownBlock,
   } from '../../src/lib/markdown/parse'
 
   type ImageSource = 'ai' | 'manual'
@@ -32,6 +33,10 @@
     status: ImageState['status']
   }
 
+  type RenderedMarkdownBlock = MarkdownBlock & {
+    renderKey: string
+  }
+
   let {
     markdown,
     autoCaptureAiImages = false,
@@ -50,10 +55,23 @@
     initialImages?: ImageSnapshot
   } = $props()
 
-  let blocks = $derived(parseConstrainedMarkdown(markdown))
   const initialImageSnapshot = untrack(() => initialImages)
+  let blocks = $state<RenderedMarkdownBlock[]>([])
   let imageStates = $state<Record<string, ImageState>>(initialImageSnapshot?.images ?? {})
   let deletedImageKeys = $state<Record<string, true>>(initialImageSnapshot?.deletedImageKeys ?? {})
+  let previousMarkdown = ''
+  let nextBlockKey = 0
+
+  $effect(() => {
+    const nextMarkdown = markdown
+    const parsedBlocks = parseConstrainedMarkdown(nextMarkdown)
+    const currentBlocks = untrack(() => blocks)
+
+    blocks = nextMarkdown.startsWith(previousMarkdown)
+      ? reconcileRenderedBlocks(currentBlocks, parsedBlocks)
+      : createRenderedBlocks(parsedBlocks)
+    previousMarkdown = nextMarkdown
+  })
 
   $effect(() => {
     onImagesChange?.({
@@ -379,6 +397,99 @@
 
     return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
   }
+
+  const createRenderedBlocks = (parsedBlocks: MarkdownBlock[]) => {
+    return parsedBlocks.map(block => ({
+      ...block,
+      renderKey: createBlockRenderKey(),
+    }))
+  }
+
+  const reconcileRenderedBlocks = (
+    currentBlocks: RenderedMarkdownBlock[],
+    parsedBlocks: MarkdownBlock[],
+  ) => {
+    return parsedBlocks.map((block, index) => {
+      const currentBlock = currentBlocks[index]
+      if (!currentBlock) {
+        return {
+          ...block,
+          renderKey: createBlockRenderKey(),
+        }
+      }
+
+      if (areMarkdownBlocksEqual(currentBlock, block)) {
+        return currentBlock
+      }
+
+      return {
+        ...block,
+        renderKey: currentBlock.renderKey,
+      }
+    })
+  }
+
+  const createBlockRenderKey = () => {
+    const key = `markdown-block-${nextBlockKey}`
+    nextBlockKey += 1
+    return key
+  }
+
+  const areMarkdownBlocksEqual = (left: MarkdownBlock, right: MarkdownBlock) => {
+    if (left.type !== right.type) {
+      return false
+    }
+
+    if (left.type === 'heading' && right.type === 'heading') {
+      return left.level === right.level && areInlinePartListsEqual(left.parts, right.parts)
+    }
+
+    if (left.type === 'image' && right.type === 'image') {
+      return left.label === right.label && left.seconds === right.seconds
+    }
+
+    if (left.type === 'list' && right.type === 'list') {
+      return areInlinePartGroupsEqual(left.items, right.items)
+    }
+
+    if (left.type === 'paragraph' && right.type === 'paragraph') {
+      return areInlinePartListsEqual(left.parts, right.parts)
+    }
+
+    return false
+  }
+
+  const areInlinePartGroupsEqual = (left: InlinePart[][], right: InlinePart[][]) => {
+    return left.length === right.length
+      && left.every((item, index) => areInlinePartListsEqual(item, right[index] ?? []))
+  }
+
+  const areInlinePartListsEqual = (left: InlinePart[], right: InlinePart[]) => {
+    return left.length === right.length
+      && left.every((part, index) => areInlinePartsEqual(part, right[index]))
+  }
+
+  const areInlinePartsEqual = (left: InlinePart, right: InlinePart | undefined) => {
+    if (!right || left.type !== right.type) {
+      return false
+    }
+
+    if (left.type === 'timestamp' && right.type === 'timestamp') {
+      return left.label === right.label
+        && left.startSeconds === right.startSeconds
+        && left.endSeconds === right.endSeconds
+    }
+
+    if (left.type === 'strong' && right.type === 'strong') {
+      return left.text === right.text
+    }
+
+    if (left.type === 'text' && right.type === 'text') {
+      return left.text === right.text
+    }
+
+    return false
+  }
 </script>
 
 {#snippet lineInsert(key: string)}
@@ -516,7 +627,7 @@
 {/if}
 
 <div class="markdown">
-  {#each blocks as block, index (index)}
+  {#each blocks as block, index (block.renderKey)}
       {#if block.type === 'heading'}
       {@const lineImageKey = createManualBlockImageKey(index)}
       {#if block.level === 1}

@@ -41,11 +41,17 @@
     deletedImageKeys: Record<string, true>
   }
 
+  const createEmptyImageSnapshot = (): ExportImageSnapshot => ({
+    images: {},
+    deletedImageKeys: {},
+  })
+
   let expanded = $state(false)
   let settingsOpen = $state(false)
   let video = $state<ResolvedVideo | null>(null)
   let subtitle = $state<SubtitleForAI | null>(null)
   let summary = $state('')
+  let streamingSummaryImages = $state<ExportImageSnapshot>(createEmptyImageSnapshot())
   let selectedTemplateId = $state('brief-outline')
   let selectedSubtitleLanguage = $state('')
   let subtitleLoading = $state(false)
@@ -159,6 +165,7 @@
     subtitle = null
     selectedSubtitleLanguage = settings.language.trim()
     summary = ''
+    streamingSummaryImages = createEmptyImageSnapshot()
     currentThread = null
     chatInput = ''
     chatLoading = false
@@ -302,6 +309,7 @@
     summaryLoading = true
     error = ''
     summary = ''
+    streamingSummaryImages = createEmptyImageSnapshot()
     try {
       const detected = detectVideo()
       if (!detected.bvid) {
@@ -328,16 +336,14 @@
         if (message.type === 'SUMMARY_STREAM_DONE') {
           summary = message.summary
           summaryLoading = false
+          const images = $state.snapshot(streamingSummaryImages) as ExportImageSnapshot
           appendHistoryEntry({
             id: createEntryId('summary'),
             kind: 'summary',
             createdAt: Date.now(),
             content: message.summary,
             templateId: selectedTemplateId,
-            images: {
-              images: {},
-              deletedImageKeys: {},
-            },
+            images,
           })
           closeStream()
         }
@@ -1699,7 +1705,19 @@
         {:else if loading}
           <article class="summary pending">
             <p class="label">AI 输出</p>
-            <p>正在生成 Markdown 总结...</p>
+            {#if summary.trim()}
+              <MarkdownView
+                markdown={summary}
+                autoCaptureAiImages={settings.autoCaptureAiImages}
+                onSeek={seekVideo}
+                onCaptureFrame={captureVideoFrame}
+                onGetCurrentSeconds={getCurrentVideoSeconds}
+                onImagesChange={(snapshot) => { streamingSummaryImages = snapshot }}
+                initialImages={streamingSummaryImages}
+              />
+            {:else}
+              <p>正在生成 Markdown 总结...</p>
+            {/if}
           </article>
         {/if}
       </section>
