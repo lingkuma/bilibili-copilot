@@ -32,6 +32,7 @@ a {
 .site-header,
 .hero,
 .section,
+.legal-page,
 .site-footer {
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
@@ -88,7 +89,8 @@ a {
   padding: 56px 0 76px;
 }
 
-.hero-copy {
+.hero-copy,
+.legal-hero {
   max-width: 560px;
 }
 
@@ -130,6 +132,9 @@ h3 {
 }
 
 .hero-text,
+.legal-hero p,
+.legal-document p,
+.legal-document li,
 .community p,
 .feature-grid p,
 .product-shot figcaption,
@@ -240,6 +245,53 @@ h3 {
   margin-bottom: 0;
 }
 
+.legal-page {
+  padding: 64px 0 92px;
+}
+
+.legal-hero {
+  padding-bottom: 36px;
+}
+
+.legal-hero h1 {
+  margin-bottom: 16px;
+}
+
+.legal-hero p {
+  margin-bottom: 0;
+}
+
+.legal-document {
+  max-width: 820px;
+  border-top: 1px solid rgba(23, 23, 23, 0.09);
+  padding-top: 42px;
+}
+
+.legal-document h2 {
+  margin-top: 38px;
+  margin-bottom: 12px;
+  font-size: 24px;
+  line-height: 1.22;
+}
+
+.legal-document p,
+.legal-document ul {
+  margin-bottom: 18px;
+}
+
+.legal-document ul {
+  padding-left: 22px;
+}
+
+.legal-document li + li {
+  margin-top: 9px;
+}
+
+.legal-document a {
+  color: #d83f31;
+  font-weight: 700;
+}
+
 .link-panel {
   display: grid;
   gap: 14px;
@@ -265,6 +317,12 @@ h3 {
   color: #686868;
   border-top: 1px solid rgba(23, 23, 23, 0.09);
   font-size: 14px;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 @media (max-width: 900px) {
@@ -296,6 +354,7 @@ h3 {
   .site-header,
   .hero,
   .section,
+  .legal-page,
   .site-footer {
     width: min(100% - 28px, 1120px);
   }
@@ -332,6 +391,10 @@ h3 {
 
   .section {
     padding: 62px 0;
+  }
+
+  .legal-page {
+    padding: 42px 0 68px;
   }
 
   .site-footer {
