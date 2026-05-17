@@ -4,6 +4,12 @@
   <img src="public/icons/icon128.png" alt="bilibili-copilot icon" width="128" height="128">
 </p>
 
+<p align="center">
+  <a href="https://chromewebstore.google.com/detail/bilibili-copilot/ijoemilkjkkbnnmgiplgefcelkmakceo">
+    <img alt="Chrome Web Store version 0.1.1" src="https://img.shields.io/badge/Chrome%20Web%20Store-v0.1.1-4285F4?logo=googlechrome&logoColor=white">
+  </a>
+</p>
+
 bilibili AI 视频总结助手，一个面向 Bilibili 视频页的浏览器扩展。它会读取当前视频字幕，并调用兼容 OpenAI Chat Completions 接口的模型生成结构化 Markdown 总结。
 
 
